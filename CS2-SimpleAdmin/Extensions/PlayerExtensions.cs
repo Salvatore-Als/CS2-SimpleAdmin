@@ -1,15 +1,14 @@
 ﻿using System.Drawing;
 using System.Numerics;
+using System.Text;
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Translations;
 using CounterStrikeSharp.API.Modules.Admin;
 using CounterStrikeSharp.API.Modules.Entities;
 using CounterStrikeSharp.API.Modules.Memory;
-using Microsoft.Extensions.Localization;
-using System.Text;
 using CounterStrikeSharp.API.Modules.UserMessages;
-using Vector = CounterStrikeSharp.API.Modules.Utils.Vector;
+using Microsoft.Extensions.Localization;
 
 namespace CS2_SimpleAdmin;
 
@@ -45,12 +44,19 @@ public static class PlayerExtensions
     /// <returns>True if targeting is allowed, false otherwise.</returns>
     public static bool CanTarget(this CCSPlayerController? controller, CCSPlayerController? target)
     {
-        if (controller is null || target is null) return true;
-        if (target.IsBot) return true;
+        if (controller is null || target is null)
+        {
+            return true;
+        }
+
+        if (target.IsBot)
+        {
+            return true;
+        }
 
         return AdminManager.CanPlayerTarget(controller, target) ||
                                   AdminManager.CanPlayerTarget(new SteamID(controller.SteamID),
-                                      new SteamID(target.SteamID)) || 
+                                      new SteamID(target.SteamID)) ||
                                       AdminManager.GetPlayerImmunity(controller) >= AdminManager.GetPlayerImmunity(target);
     }
 
@@ -62,9 +68,12 @@ public static class PlayerExtensions
     /// <returns>True if targeting is permitted, false otherwise.</returns>
     public static bool CanTarget(this CCSPlayerController? controller, SteamID steamId)
     {
-        if (controller is null) return true;
+        if (controller is null)
+        {
+            return true;
+        }
 
-        return AdminManager.CanPlayerTarget(new SteamID(controller.SteamID), steamId) || 
+        return AdminManager.CanPlayerTarget(new SteamID(controller.SteamID), steamId) ||
                AdminManager.GetPlayerImmunity(controller) >= AdminManager.GetPlayerImmunity(steamId);
     }
 
@@ -75,8 +84,11 @@ public static class PlayerExtensions
     /// <param name="speed">The speed modifier value.</param>
     public static void SetSpeed(this CCSPlayerController? controller, float speed)
     {
-        var playerPawnValue = controller?.PlayerPawn.Value;
-        if (playerPawnValue == null) return;
+        CCSPlayerPawn? playerPawnValue = controller?.PlayerPawn.Value;
+        if (playerPawnValue == null)
+        {
+            return;
+        }
 
         playerPawnValue.VelocityModifier = speed;
     }
@@ -88,8 +100,11 @@ public static class PlayerExtensions
     /// <param name="gravity">The gravity scale.</param>
     public static void SetGravity(this CCSPlayerController? controller, float gravity)
     {
-        var playerPawnValue = controller?.PlayerPawn.Value;
-        if (playerPawnValue == null) return;
+        CCSPlayerPawn? playerPawnValue = controller?.PlayerPawn.Value;
+        if (playerPawnValue == null)
+        {
+            return;
+        }
 
         playerPawnValue.ActualGravityScale = gravity;
     }
@@ -101,12 +116,18 @@ public static class PlayerExtensions
     /// <param name="money">The amount of money to set.</param>
     public static void SetMoney(this CCSPlayerController? controller, int money)
     {
-        var moneyServices = controller?.InGameMoneyServices;
-        if (moneyServices == null) return;
+        CCSPlayerController_InGameMoneyServices? moneyServices = controller?.InGameMoneyServices;
+        if (moneyServices == null)
+        {
+            return;
+        }
 
         moneyServices.Account = money;
 
-        if (controller != null) Utilities.SetStateChanged(controller, "CCSPlayerController", "m_pInGameMoneyServices");
+        if (controller != null)
+        {
+            Utilities.SetStateChanged(controller, "CCSPlayerController", "m_pInGameMoneyServices");
+        }
     }
 
     /// <summary>
@@ -116,8 +137,15 @@ public static class PlayerExtensions
     /// <param name="health">The health value, default is 100.</param>
     public static void SetHp(this CCSPlayerController? controller, int health = 100)
     {
-        if (controller == null) return;
-        if (health <= 0 || controller.PlayerPawn.Value == null ||  controller.PlayerPawn?.Value?.LifeState != (int)LifeState_t.LIFE_ALIVE) return;
+        if (controller == null)
+        {
+            return;
+        }
+
+        if (health <= 0 || controller.PlayerPawn.Value == null || controller.PlayerPawn?.Value?.LifeState != (int)LifeState_t.LIFE_ALIVE)
+        {
+            return;
+        }
 
         controller.PlayerPawn.Value.Health = health;
 
@@ -136,10 +164,10 @@ public static class PlayerExtensions
     /// <param name="depth">The depth offset (default 10 units).</param>
     public static void Bury(this CBasePlayerPawn pawn, float depth = 10f)
     {
-        var newPos = new Vector3(pawn.AbsOrigin!.X, pawn.AbsOrigin.Y,
+        Vector3 newPos = new Vector3(pawn.AbsOrigin!.X, pawn.AbsOrigin.Y,
             pawn.AbsOrigin!.Z - depth);
-        var newRotation = new Vector3(pawn.AbsRotation!.X, pawn.AbsRotation.Y, pawn.AbsRotation.Z);
-        var newVelocity = new Vector3(pawn.AbsVelocity.X, pawn.AbsVelocity.Y, pawn.AbsVelocity.Z);
+        Vector3 newRotation = new Vector3(pawn.AbsRotation!.X, pawn.AbsRotation.Y, pawn.AbsRotation.Z);
+        Vector3 newVelocity = new Vector3(pawn.AbsVelocity.X, pawn.AbsVelocity.Y, pawn.AbsVelocity.Z);
 
         pawn.Teleport(newPos, newRotation, newVelocity);
     }
@@ -151,10 +179,10 @@ public static class PlayerExtensions
     /// <param name="depth">The depth offset (default 15 units).</param>
     public static void Unbury(this CBasePlayerPawn pawn, float depth = 15f)
     {
-        var newPos = new Vector3(pawn.AbsOrigin!.X, pawn.AbsOrigin.Y,
+        Vector3 newPos = new Vector3(pawn.AbsOrigin!.X, pawn.AbsOrigin.Y,
             pawn.AbsOrigin!.Z + depth);
-        var newRotation = new Vector3(pawn.AbsRotation!.X, pawn.AbsRotation.Y, pawn.AbsRotation.Z);
-        var newVelocity = new Vector3(pawn.AbsVelocity.X, pawn.AbsVelocity.Y, pawn.AbsVelocity.Z);
+        Vector3 newRotation = new Vector3(pawn.AbsRotation!.X, pawn.AbsRotation.Y, pawn.AbsRotation.Z);
+        Vector3 newVelocity = new Vector3(pawn.AbsVelocity.X, pawn.AbsVelocity.Y, pawn.AbsVelocity.Z);
 
         pawn.Teleport(newPos, newRotation, newVelocity);
     }
@@ -169,7 +197,7 @@ public static class PlayerExtensions
         Schema.SetSchemaValue(pawn.Handle, "CBaseEntity", "m_nActualMoveType", 11); // invalid
         Utilities.SetStateChanged(pawn, "CBaseEntity", "m_MoveType");
     }
-    
+
     /// <summary>
     /// Unfreezes the player pawn, enabling movement.
     /// </summary>
@@ -180,7 +208,7 @@ public static class PlayerExtensions
         Schema.SetSchemaValue(pawn.Handle, "CBaseEntity", "m_nActualMoveType", 2); // walk
         Utilities.SetStateChanged(pawn, "CBaseEntity", "m_MoveType");
     }
-    
+
     /// <summary>
     /// Changes the player's color tint to specified RGBA values.
     /// </summary>
@@ -226,7 +254,7 @@ public static class PlayerExtensions
 
         if (controller != null)
         {
-            var playerName = new SchemaString<CBasePlayerController>(controller, "m_iszPlayerName");
+            SchemaString<CBasePlayerController> playerName = new SchemaString<CBasePlayerController>(controller, "m_iszPlayerName");
             playerName.Set(newName + " ");
 
             CS2_SimpleAdmin.Instance.AddTimer(0.25f, () =>
@@ -243,7 +271,10 @@ public static class PlayerExtensions
 
         CS2_SimpleAdmin.Instance.AddTimer(0.4f, () =>
         {
-            if (controller != null) Utilities.SetStateChanged(controller, "CBasePlayerController", "m_iszPlayerName");
+            if (controller != null)
+            {
+                Utilities.SetStateChanged(controller, "CBasePlayerController", "m_iszPlayerName");
+            }
         });
     }
 
@@ -255,7 +286,9 @@ public static class PlayerExtensions
     public static void TeleportPlayer(this CCSPlayerController? controller, CCSPlayerController? target)
     {
         if (controller?.PlayerPawn.Value == null && target?.PlayerPawn.Value == null)
+        {
             return;
+        }
 
         if (
             controller?.PlayerPawn.Value is { AbsOrigin: not null, AbsRotation: not null } &&
@@ -278,17 +311,19 @@ public static class PlayerExtensions
     private static void PerformSlap(CBasePlayerPawn pawn, int damage = 0)
     {
         if (pawn.LifeState != (int)LifeState_t.LIFE_ALIVE)
+        {
             return;
+        }
 
-        var controller = pawn.Controller.Value?.As<CCSPlayerController>();
+        CCSPlayerController? controller = pawn.Controller.Value?.As<CCSPlayerController>();
 
         /* Teleport in a random direction - thank you, Mani!*/
         /* Thank you AM & al!*/
-        var random = new Random();
-        var vel = new Vector3(pawn.AbsVelocity.X, pawn.AbsVelocity.Y, pawn.AbsVelocity.Z);
+        Random random = new Random();
+        Vector3 vel = new Vector3(pawn.AbsVelocity.X, pawn.AbsVelocity.Y, pawn.AbsVelocity.Z);
 
-        vel.X += (random.Next(180) + 50) * (random.Next(2) == 1 ? -1 : 1);
-        vel.Y += (random.Next(180) + 50) * (random.Next(2) == 1 ? -1 : 1);
+        vel.X += (random.Next(180) + 50) * RandomSign(random);
+        vel.Y += (random.Next(180) + 50) * RandomSign(random);
         vel.Z += random.Next(200) + 100;
 
         pawn.AbsVelocity.X = vel.X;
@@ -297,7 +332,7 @@ public static class PlayerExtensions
 
         if (controller != null && controller.IsValid)
         {
-            var shakeMessage = UserMessage.FromPartialName("Shake");
+            UserMessage shakeMessage = UserMessage.FromPartialName("Shake");
             shakeMessage.SetFloat("duration", 1);
             shakeMessage.SetFloat("amplitude", 10);
             shakeMessage.SetFloat("frequency", 1f);
@@ -307,13 +342,17 @@ public static class PlayerExtensions
         }
 
         if (damage <= 0)
+        {
             return;
+        }
 
         pawn.Health -= damage;
         Utilities.SetStateChanged(pawn, "CBaseEntity", "m_iHealth");
 
         if (pawn.Health <= 0)
+        {
             pawn.CommitSuicide(true, true);
+        }
     }
 
     /// <summary>
@@ -329,16 +368,19 @@ public static class PlayerExtensions
     public static void SendLocalizedMessage(this CCSPlayerController? controller, IStringLocalizer? localizer,
         string messageKey, params object[] messageArgs)
     {
-        if (controller == null || localizer == null) return;
+        if (controller == null || localizer == null)
+        {
+            return;
+        }
 
         using (new WithTemporaryCulture(controller.GetLanguage()))
         {
             StringBuilder sb = new();
             sb.Append(localizer[messageKey, messageArgs]);
-            
-            foreach (var part in Helper.SeparateLines(sb.ToString()))
+
+            foreach (string part in Helper.SeparateLines(sb.ToString()))
             {
-                var lineWithPrefix = (CS2_SimpleAdmin._localizer?["sa_prefix"] ?? "") + part.Trim();
+                string lineWithPrefix = (CS2_SimpleAdmin._localizer?["sa_prefix"] ?? "") + part.Trim();
                 controller.PrintToChat(lineWithPrefix);
             }
         }
@@ -357,20 +399,33 @@ public static class PlayerExtensions
     public static void SendLocalizedMessageCenter(this CCSPlayerController? controller, IStringLocalizer? localizer,
         string messageKey, params object[] messageArgs)
     {
-        if (controller == null || localizer == null) return;
+        if (controller == null || localizer == null)
+        {
+            return;
+        }
 
         using (new WithTemporaryCulture(controller.GetLanguage()))
         {
             StringBuilder sb = new();
             sb.Append(localizer[messageKey, messageArgs]);
 
-            foreach (var part in Helper.SeparateLines(sb.ToString()))
+            foreach (string part in Helper.SeparateLines(sb.ToString()))
             {
                 string _part;
                 _part = Helper.CenterMessage(part);
-                var lineWithPrefix = localizer["sa_prefix"] + _part;
+                string lineWithPrefix = localizer["sa_prefix"] + _part;
                 controller.PrintToChat(lineWithPrefix);
             }
         }
+    }
+
+    private static int RandomSign(Random random)
+    {
+        if (random.Next(2) == 1)
+        {
+            return -1;
+        }
+
+        return 1;
     }
 }

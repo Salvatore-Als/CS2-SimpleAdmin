@@ -1,4 +1,5 @@
-﻿using CS2_SimpleAdmin.Database;
+﻿using System.Data.Common;
+using CS2_SimpleAdmin.Database;
 using CS2_SimpleAdminApi;
 using Dapper;
 using Microsoft.Extensions.Logging;
@@ -18,12 +19,15 @@ internal class MuteManager(IDatabaseProvider? databaseProvider)
     /// <returns>Mute ID if successfully added, otherwise null.</returns>
     public async Task<int?> MutePlayer(PlayerInfo player, PlayerInfo? issuer, string reason, int time = 0, int type = 0)
     {
-        if (databaseProvider == null) return null;
+        if (databaseProvider == null)
+        {
+            return null;
+        }
 
-        var now = Time.ActualDateTime();
-        var futureTime = now.AddMinutes(time);
+        DateTime now = Time.ActualDateTime();
+        DateTime futureTime = now.AddMinutes(time);
 
-        var muteType = type switch
+        string muteType = type switch
         {
             1 => "MUTE",
             2 => "SILENCE",
@@ -32,10 +36,10 @@ internal class MuteManager(IDatabaseProvider? databaseProvider)
 
         try
         {
-            await using var connection = await databaseProvider.CreateConnectionAsync();
-            var sql = databaseProvider.GetAddMuteQuery(true);
+            await using DbConnection connection = await databaseProvider.CreateConnectionAsync();
+            string sql = databaseProvider.GetAddMuteQuery(true);
 
-            var muteId = await connection.ExecuteScalarAsync<int?>(sql, new
+            int? muteId = await connection.ExecuteScalarAsync<int?>(sql, new
             {
                 playerSteamid = player.SteamId.SteamId64,
                 playerName = player.Name,
@@ -69,12 +73,15 @@ internal class MuteManager(IDatabaseProvider? databaseProvider)
     /// <returns>Mute ID if successful, otherwise null.</returns>
     public async Task<int?> AddMuteBySteamid(ulong playerSteamId, PlayerInfo? issuer, string reason, int time = 0, int type = 0)
     {
-        if (databaseProvider == null) return null;
+        if (databaseProvider == null)
+        {
+            return null;
+        }
 
-        var now = Time.ActualDateTime();
-        var futureTime = now.AddMinutes(time);
+        DateTime now = Time.ActualDateTime();
+        DateTime futureTime = now.AddMinutes(time);
 
-        var muteType = type switch
+        string muteType = type switch
         {
             1 => "MUTE",
             2 => "SILENCE",
@@ -83,10 +90,10 @@ internal class MuteManager(IDatabaseProvider? databaseProvider)
 
         try
         {
-            await using var connection = await databaseProvider.CreateConnectionAsync();
-            var sql = databaseProvider.GetAddMuteQuery(false);
-            
-            var muteId = await connection.ExecuteScalarAsync<int?>(sql, new
+            await using DbConnection connection = await databaseProvider.CreateConnectionAsync();
+            string sql = databaseProvider.GetAddMuteQuery(false);
+
+            int? muteId = await connection.ExecuteScalarAsync<int?>(sql, new
             {
                 playerSteamid = playerSteamId,
                 adminSteamid = issuer?.SteamId.SteamId64 ?? 0,
@@ -114,7 +121,10 @@ internal class MuteManager(IDatabaseProvider? databaseProvider)
     /// <returns>List of active mute records; empty list if none or on error.</returns>
     public async Task<List<dynamic>> IsPlayerMuted(string steamId)
     {
-        if (databaseProvider == null) return [];
+        if (databaseProvider == null)
+        {
+            return [];
+        }
 
         if (string.IsNullOrEmpty(steamId))
         {
@@ -123,18 +133,20 @@ internal class MuteManager(IDatabaseProvider? databaseProvider)
 
 #if DEBUG
         if (CS2_SimpleAdmin._logger != null)
+        {
             CS2_SimpleAdmin._logger.LogCritical($"IsPlayerMuted for {steamId}");
+        }
 #endif
 
         try
         {
-            await using var connection = await databaseProvider.CreateConnectionAsync();
-            var currentTime = Time.ActualDateTime();
-            
-            var sql = databaseProvider.GetIsMutedQuery(CS2_SimpleAdmin.Instance.Config.MultiServerMode, CS2_SimpleAdmin.Instance.Config.OtherSettings.TimeMode);
-            
+            await using DbConnection connection = await databaseProvider.CreateConnectionAsync();
+            DateTime currentTime = Time.ActualDateTime();
+
+            string sql = databaseProvider.GetIsMutedQuery(CS2_SimpleAdmin.Instance.Config.MultiServerMode, CS2_SimpleAdmin.Instance.Config.OtherSettings.TimeMode);
+
             var parameters = new { PlayerSteamID = steamId, CurrentTime = currentTime, serverid = CS2_SimpleAdmin.ServerId };
-            var activeMutes = (await connection.QueryAsync(sql, parameters)).ToList();
+            List<dynamic> activeMutes = (await connection.QueryAsync(sql, parameters)).ToList();
             return activeMutes;
         }
         catch (Exception)
@@ -153,14 +165,17 @@ internal class MuteManager(IDatabaseProvider? databaseProvider)
     /// </returns>
     public async Task<(int TotalMutes, int TotalGags, int TotalSilences)> GetPlayerMutes(PlayerInfo playerInfo)
     {
-        if (databaseProvider == null) return (0,0,0);
+        if (databaseProvider == null)
+        {
+            return (0, 0, 0);
+        }
 
         try
         {
-            await using var connection = await databaseProvider.CreateConnectionAsync();
+            await using DbConnection connection = await databaseProvider.CreateConnectionAsync();
 
-            var sql = databaseProvider.GetMuteStatsQuery(CS2_SimpleAdmin.Instance.Config.MultiServerMode);
-            var result = await connection.QuerySingleAsync<(int TotalMutes, int TotalGags, int TotalSilences)>(sql, new
+            string sql = databaseProvider.GetMuteStatsQuery(CS2_SimpleAdmin.Instance.Config.MultiServerMode);
+            (int TotalMutes, int TotalGags, int TotalSilences) result = await connection.QuerySingleAsync<(int TotalMutes, int TotalGags, int TotalSilences)>(sql, new
             {
                 PlayerSteamID = playerInfo.SteamId.SteamId64,
                 CS2_SimpleAdmin.ServerId
@@ -173,7 +188,7 @@ internal class MuteManager(IDatabaseProvider? databaseProvider)
             return (0, 0, 0);
         }
     }
-    
+
     /// <summary>
     /// Processes a batch of online players to update their mute status and remove expired penalties.
     /// </summary>
@@ -181,21 +196,24 @@ internal class MuteManager(IDatabaseProvider? databaseProvider)
     /// <returns>Task representing the asynchronous operation.</returns>
     public async Task CheckOnlineModeMutes(List<(ulong SteamID, int? UserId, int Slot)> players)
     {
-        if (databaseProvider == null) return;
+        if (databaseProvider == null)
+        {
+            return;
+        }
 
         try
         {
             const int batchSize = 20;
-            await using var connection = await databaseProvider.CreateConnectionAsync();
+            await using DbConnection connection = await databaseProvider.CreateConnectionAsync();
 
-            var sql = databaseProvider.GetUpdateMutePassedQuery(CS2_SimpleAdmin.Instance.Config.MultiServerMode);
+            string sql = databaseProvider.GetUpdateMutePassedQuery(CS2_SimpleAdmin.Instance.Config.MultiServerMode);
 
-            for (var i = 0; i < players.Count; i += batchSize)
+            for (int i = 0; i < players.Count; i += batchSize)
             {
-                var batch = players.Skip(i).Take(batchSize);
-                var parametersList = new List<object>();
+                IEnumerable<(ulong SteamID, int? UserId, int Slot)> batch = players.Skip(i).Take(batchSize);
+                List<object> parametersList = new List<object>();
 
-                foreach (var (steamId, _, _) in batch)
+                foreach ((ulong steamId, int? _, int _) in batch)
                 {
                     parametersList.Add(new { PlayerSteamID = steamId, serverid = CS2_SimpleAdmin.ServerId });
                 }
@@ -205,11 +223,11 @@ internal class MuteManager(IDatabaseProvider? databaseProvider)
 
             sql = databaseProvider.GetCheckExpiredMutesQuery(CS2_SimpleAdmin.Instance.Config.MultiServerMode);
 
-            foreach (var (steamId, _, slot) in players)
+            foreach ((ulong steamId, int? _, int slot) in players)
             {
-                var muteRecords = await connection.QueryAsync(sql, new { PlayerSteamID = steamId, serverid = CS2_SimpleAdmin.ServerId });
+                IEnumerable<dynamic> muteRecords = await connection.QueryAsync(sql, new { PlayerSteamID = steamId, serverid = CS2_SimpleAdmin.ServerId });
 
-                foreach (var muteRecord in muteRecords)
+                foreach (dynamic muteRecord in muteRecords)
                 {
                     DateTime endDateTime = muteRecord.ends;
                     PlayerPenaltyManager.RemovePenaltiesByDateTime(slot, endDateTime);
@@ -230,7 +248,10 @@ internal class MuteManager(IDatabaseProvider? databaseProvider)
     /// <returns>Task representing the asynchronous operation.</returns>
     public async Task UnmutePlayer(string playerPattern, string adminSteamId, string reason, int type = 0)
     {
-        if (databaseProvider == null) return;
+        if (databaseProvider == null)
+        {
+            return;
+        }
 
         if (playerPattern.Length <= 1)
         {
@@ -239,36 +260,38 @@ internal class MuteManager(IDatabaseProvider? databaseProvider)
 
         try
         {
-            await using var connection = await databaseProvider.CreateConnectionAsync();
-            var muteType = type switch
+            await using DbConnection connection = await databaseProvider.CreateConnectionAsync();
+            string muteType = type switch
             {
                 1 => "MUTE",
                 2 => "SILENCE",
                 _ => "GAG"
             };
 
-            var sqlRetrieveMutes =
+            string sqlRetrieveMutes =
                 databaseProvider.GetRetrieveMutesQuery(CS2_SimpleAdmin.Instance.Config.MultiServerMode);
-            var mutes = await connection.QueryAsync(sqlRetrieveMutes, new { pattern = playerPattern, muteType, serverid = CS2_SimpleAdmin.ServerId });
+            IEnumerable<dynamic> mutes = await connection.QueryAsync(sqlRetrieveMutes, new { pattern = playerPattern, muteType, serverid = CS2_SimpleAdmin.ServerId });
 
-            var mutesList = mutes as dynamic[] ?? mutes.ToArray();
+            dynamic[] mutesList = mutes as dynamic[] ?? mutes.ToArray();
             if (mutesList.Length == 0)
+            {
                 return;
+            }
 
-            var sqlAdmin = databaseProvider.GetUnmuteAdminIdQuery();
-            var sqlInsertUnmute = databaseProvider.GetInsertUnmuteQuery(string.IsNullOrEmpty(reason));
+            string sqlAdmin = databaseProvider.GetUnmuteAdminIdQuery();
+            string sqlInsertUnmute = databaseProvider.GetInsertUnmuteQuery(string.IsNullOrEmpty(reason));
 
-            var sqlAdminId = await connection.ExecuteScalarAsync<int?>(sqlAdmin, new { adminSteamId });
-            var adminId = sqlAdminId ?? 0;
+            int? sqlAdminId = await connection.ExecuteScalarAsync<int?>(sqlAdmin, new { adminSteamId });
+            int adminId = sqlAdminId ?? 0;
 
-            foreach (var mute in mutesList)
+            foreach (dynamic mute in mutesList)
             {
                 int muteId = mute.id;
 
                 int? unmuteId =
                     await connection.ExecuteScalarAsync<int>(sqlInsertUnmute, new { muteId, adminId, reason });
 
-                var sqlUpdateMute = databaseProvider.GetUpdateMuteStatusQuery();
+                string sqlUpdateMute = databaseProvider.GetUpdateMuteStatusQuery();
                 await connection.ExecuteAsync(sqlUpdateMute, new { unmuteId, muteId });
             }
         }
@@ -284,12 +307,15 @@ internal class MuteManager(IDatabaseProvider? databaseProvider)
     /// <returns>Task representing the asynchronous expiration operation.</returns>
     public async Task ExpireOldMutes()
     {
-        if (databaseProvider == null) return;
+        if (databaseProvider == null)
+        {
+            return;
+        }
 
         try
         {
-            await using var connection = await databaseProvider.CreateConnectionAsync();
-            var sql = databaseProvider.GetExpireMutesQuery(CS2_SimpleAdmin.Instance.Config.MultiServerMode, CS2_SimpleAdmin.Instance.Config.OtherSettings.TimeMode);
+            await using DbConnection connection = await databaseProvider.CreateConnectionAsync();
+            string sql = databaseProvider.GetExpireMutesQuery(CS2_SimpleAdmin.Instance.Config.MultiServerMode, CS2_SimpleAdmin.Instance.Config.OtherSettings.TimeMode);
             await connection.ExecuteAsync(sql, new { CurrentTime = Time.ActualDateTime(), serverid = CS2_SimpleAdmin.ServerId });
         }
         catch (Exception)

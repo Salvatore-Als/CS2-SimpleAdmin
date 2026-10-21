@@ -11,9 +11,9 @@ public static class RegisterCommands
 {
     internal static readonly Dictionary<string, IList<CommandDefinition>> _commandDefinitions =
         new(StringComparer.InvariantCultureIgnoreCase);
-    
+
     private delegate void CommandCallback(CCSPlayerController? caller, CommandInfo.CommandCallback callback);
-    
+
     private static readonly string CommandsPath = Path.Combine(CS2_SimpleAdmin.ConfigDirectory, "Commands.json");
     private static readonly List<CommandMapping> CommandMappings =
     [
@@ -101,7 +101,7 @@ public static class RegisterCommands
     [UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code", Justification = "<Pending>")]
     private static void CreateConfig()
     {
-        var commands = new CommandsConfig
+        CommandsConfig commands = new CommandsConfig
         {
             Commands = new Dictionary<string, Command>
             {
@@ -161,14 +161,14 @@ public static class RegisterCommands
                 { "css_adminvoice", new Command { Aliases = ["css_adminvoice", "css_listenall"] } }
             }
         };
-        
-        var options = new JsonSerializerOptions
+
+        JsonSerializerOptions options = new JsonSerializerOptions
         {
             WriteIndented = true,
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         };
 
-        var json = JsonSerializer.Serialize(commands, options);
+        string json = JsonSerializer.Serialize(commands, options);
         File.WriteAllText(CommandsPath, json);
     }
 
@@ -179,46 +179,52 @@ public static class RegisterCommands
     [UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code", Justification = "<Pending>")]
     private static void Register()
     {
-        var json = File.ReadAllText(CommandsPath);
-        var commandsConfig = JsonSerializer.Deserialize<CommandsConfig>(json, 
+        string json = File.ReadAllText(CommandsPath);
+        CommandsConfig? commandsConfig = JsonSerializer.Deserialize<CommandsConfig>(json,
             new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
         if (commandsConfig?.Commands != null)
         {
-            foreach (var command in commandsConfig.Commands)
+            foreach (KeyValuePair<string, Command> command in commandsConfig.Commands)
             {
-                if (command.Value.Aliases == null) continue;
-            
+                if (command.Value.Aliases == null)
+                {
+                    continue;
+                }
+
                 CS2_SimpleAdmin._logger?.LogInformation(
                     $"Registering command: `{command.Key}` with aliases: `{string.Join(", ", command.Value.Aliases)}`");
-            
-                var mapping = CommandMappings.FirstOrDefault(m => m.CommandKey == command.Key);
-                if (mapping == null || command.Value.Aliases.Length == 0) continue;
-            
-                foreach (var alias in command.Value.Aliases)
+
+                CommandMapping? mapping = CommandMappings.FirstOrDefault(m => m.CommandKey == command.Key);
+                if (mapping == null || command.Value.Aliases.Length == 0)
+                {
+                    continue;
+                }
+
+                foreach (string alias in command.Value.Aliases)
                 {
                     CS2_SimpleAdmin.Instance.AddCommand(alias, "", mapping.Callback);
                 }
             }
 
             // Commands added after Commands.json was generated are registered under their default name
-            foreach (var mapping in CommandMappings.Where(m => !commandsConfig.Commands.ContainsKey(m.CommandKey)))
+            foreach (CommandMapping? mapping in CommandMappings.Where(m => !commandsConfig.Commands.ContainsKey(m.CommandKey)))
             {
                 CS2_SimpleAdmin._logger?.LogInformation($"Registering command: `{mapping.CommandKey}` (not in Commands.json, using default alias)");
                 CS2_SimpleAdmin.Instance.AddCommand(mapping.CommandKey, "", mapping.Callback);
             }
         }
-        
-        foreach (var (name, definitions) in _commandDefinitions)
+
+        foreach ((string? name, IList<CommandDefinition>? definitions) in _commandDefinitions)
         {
-            foreach (var definition in definitions)
+            foreach (CommandDefinition definition in definitions)
             {
                 CS2_SimpleAdmin._logger?.LogInformation($"Registering custom command: `{name}`");
                 CS2_SimpleAdmin.Instance.AddCommand(name, definition.Description, definition.Callback);
             }
         }
     }
-    
+
     /// <summary>
     /// Represents the JSON configuration structure for commands.
     /// </summary>
@@ -226,7 +232,7 @@ public static class RegisterCommands
     {
         public Dictionary<string, Command>? Commands { get; init; }
     }
-    
+
     /// <summary>
     /// Represents a command definition containing a list of aliases.
     /// </summary>
@@ -234,7 +240,7 @@ public static class RegisterCommands
     {
         public string[]? Aliases { get; init; }
     }
-    
+
     /// <summary>
     /// Maps a command key to its respective command callback handler.
     /// </summary>

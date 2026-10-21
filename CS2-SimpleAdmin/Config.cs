@@ -1,5 +1,5 @@
-﻿using CounterStrikeSharp.API.Core;
-using System.Text.Json.Serialization;
+﻿using System.Text.Json.Serialization;
+using CounterStrikeSharp.API.Core;
 
 namespace CS2_SimpleAdmin;
 
@@ -89,7 +89,7 @@ public class Discord
         new() { Name = "Footer", Value = "" },
         new() { Name = "Time", Value = "{relative}" },
     ];
-    
+
     [JsonPropertyName("DiscordAssociatedAccountsSettings")]
     public DiscordPenaltySetting[] DiscordAssociatedAccountsSettings { get; set; } =
     [
@@ -119,7 +119,13 @@ public class CustomServerCommandData
 
 public class MenuConfig
 {
-    [JsonPropertyName("MenuType")] public string MenuType { get; set; } = "selectable";
+    [JsonPropertyName("MenuLayout")] public string MenuLayout { get; set; } = "uikit_menu";
+
+    [JsonPropertyName("VoteLayout")] public string VoteLayout { get; set; } = "uikit_vote";
+
+    [JsonPropertyName("BannerLayout")] public string BannerLayout { get; set; } = "uikit_banner";
+
+    [JsonPropertyName("ToastLayout")] public string ToastLayout { get; set; } = "uikit_toast";
 
     [JsonPropertyName("Durations")]
     public DurationItem[] Durations { get; set; } =
@@ -214,7 +220,7 @@ public class OtherSettings
 
     [JsonPropertyName("MaxBanDuration")]
     public int MaxBanDuration { get; set; } = 60 * 24 * 7;
-    
+
     [JsonPropertyName("MaxMuteDuration")]
     public int MaxMuteDuration { get; set; } = 60 * 24 * 7;
 
@@ -226,16 +232,16 @@ public class OtherSettings
 
     [JsonPropertyName("DisconnectedPlayersHistoryCount")]
     public int DisconnectedPlayersHistoryCount { get; set; } = 10;
-    
+
     [JsonPropertyName("NotifyPenaltiesToAdminOnConnect")]
     public bool NotifyPenaltiesToAdminOnConnect { get; set; } = true;
-    
+
     [JsonPropertyName("ShowBanMenuIfNoTime")]
     public bool ShowBanMenuIfNoTime { get; set; } = true;
-    
+
     [JsonPropertyName("UserMessageGagChatType")]
     public bool UserMessageGagChatType { get; set; } = false;
-    
+
     [JsonPropertyName("CheckMultiAccountsByIp")]
     public bool CheckMultiAccountsByIp { get; set; } = true;
 
@@ -247,11 +253,11 @@ public class OtherSettings
 
 public class CS2_SimpleAdminConfig : BasePluginConfig
 {
-    [JsonPropertyName("ConfigVersion")] public override int Version { get; set; } = 25;
+    [JsonPropertyName("ConfigVersion")] public override int Version { get; set; } = 26;
 
-    [JsonPropertyName("DatabaseConfig")] 
+    [JsonPropertyName("DatabaseConfig")]
     public DatabaseConfig DatabaseConfig { get; set; } = new();
- 
+
     [JsonPropertyName("OtherSettings")]
     public OtherSettings OtherSettings { get; set; } = new();
 
@@ -295,7 +301,7 @@ public class DatabaseConfig
 {
     [JsonPropertyName("DatabaseType")]
     public string DatabaseType { get; set; } = "SQLite";
-    
+
     [JsonPropertyName("SqliteFilePath")]
     public string SqliteFilePath { get; set; } = "cs2-simpleadmin.sqlite";
 
@@ -313,7 +319,7 @@ public class DatabaseConfig
 
     [JsonPropertyName("DatabaseName")]
     public string DatabaseName { get; set; } = "";
-    
+
     [JsonPropertyName("DatabaseSSlMode")]
     public string DatabaseSSlMode { get; set; } = "preferred";
 }

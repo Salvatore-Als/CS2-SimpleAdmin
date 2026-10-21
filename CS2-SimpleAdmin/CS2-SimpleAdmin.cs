@@ -19,11 +19,22 @@ public partial class CS2_SimpleAdmin : BasePlugin, IPluginConfig<CS2_SimpleAdmin
 {
     internal static CS2_SimpleAdmin Instance { get; private set; } = new();
 
-    public override string ModuleName => "CS2-SimpleAdmin" + (Helper.IsDebugBuild ? " (DEBUG)" : " (RELEASE)");
+    public override string ModuleName
+    {
+        get
+        {
+            if (Helper.IsDebugBuild)
+            {
+                return "CS2-SimpleAdmin (DEBUG)";
+            }
+
+            return "CS2-SimpleAdmin (RELEASE)";
+        }
+    }
     public override string ModuleDescription => "Simple admin plugin for Counter-Strike 2 :)";
     public override string ModuleAuthor => "daffyy";
     public override string ModuleVersion => "1.9.1";
-    
+
     public override void Load(bool hotReload)
     {
         Instance = this;
@@ -31,30 +42,38 @@ public partial class CS2_SimpleAdmin : BasePlugin, IPluginConfig<CS2_SimpleAdmin
         {
             ServerLoaded = false;
             _serverLoading = false;
-            
+
             CacheManager?.Dispose();
             CacheManager = new CacheManager();
-            
+
             // OnGameServerSteamAPIActivated();
             OnMapStart(string.Empty);
 
             AddTimer(6.0f, () =>
             {
-                if (DatabaseProvider == null) return;
-                
+                if (DatabaseProvider == null)
+                {
+                    return;
+                }
+
                 PlayersInfo.Clear();
                 CachedPlayers.Clear();
                 BotPlayers.Clear();
-                
-                foreach (var player in Utilities.GetPlayers().Where(p => p.IsValid && p is { Connected: PlayerConnectedState.Connected, IsHLTV: false }).ToArray()) 
+
+                foreach (CCSPlayerController? player in Utilities.GetPlayers().Where(p => p.IsValid && p is { Connected: PlayerConnectedState.Connected, IsHLTV: false }).ToArray())
                 {
                     if (!player.IsBot)
+                    {
                         PlayerManager.LoadPlayerData(player, true);
+                    }
                     else
+                    {
                         BotPlayers.Add(player);
-                };
+                    }
+                }
+                ;
             });
-            
+
         }
         _cBasePlayerControllerSetPawnFunc = new MemoryFunctionVoid<CBasePlayerController, CCSPlayerPawn, bool, bool>(GameData.GetSignature("CBasePlayerController_SetPawn"));
 
@@ -64,22 +83,14 @@ public partial class CS2_SimpleAdmin : BasePlugin, IPluginConfig<CS2_SimpleAdmin
         PlayersTimer?.Kill();
         PlayersTimer = null;
         PlayerManager.CheckPlayersTimer();
-        
+
         Menus.MenuManager.Instance.InitializeDefaultCategories();
         BasicMenu.Initialize();
     }
 
     public override void OnAllPluginsLoaded(bool hotReload)
     {
-        try
-        {
-            MenuApi = MenuCapability.Get();
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError("Unable to load required plugins ... \n{exception}", ex.Message);
-            Unload(false);
-        }
+        UiKit.Preload(Logger);
 
         RegisterEvents();
         AddTimer(0.5f, RegisterCommands.InitializeCommands);
@@ -87,7 +98,10 @@ public partial class CS2_SimpleAdmin : BasePlugin, IPluginConfig<CS2_SimpleAdmin
         // Loading the plugin mid-map (css_plugins load) fires no map start, so kick server loading off ourselves.
         AddTimer(5.0f, () =>
         {
-            if (!ServerLoaded) OnGameServerSteamAPIActivated();
+            if (!ServerLoaded)
+            {
+                OnGameServerSteamAPIActivated();
+            }
         });
 
         if (!CoreConfig.UnlockConCommands)
@@ -107,16 +121,17 @@ public partial class CS2_SimpleAdmin : BasePlugin, IPluginConfig<CS2_SimpleAdmin
 
         _logger = Logger;
         Config = config;
+        UiKit.Configure(config.MenuConfigs);
 
         bool missing = false;
-        var cssPath = Path.Combine(Server.GameDirectory, "csgo", "addons", "counterstrikesharp");
-        var pluginsPath = Path.Combine(cssPath, "plugins");
-        var sharedPath = Path.Combine(cssPath, "shared");
+        string cssPath = Path.Combine(Server.GameDirectory, "csgo", "addons", "counterstrikesharp");
+        string pluginsPath = Path.Combine(cssPath, "plugins");
+        string sharedPath = Path.Combine(cssPath, "shared");
 
-        foreach (var plugin in _requiredPlugins)
+        foreach (string plugin in _requiredPlugins)
         {
-            var pluginDirPath = Path.Combine(pluginsPath, plugin);
-            var pluginDllPath = Path.Combine(pluginDirPath, $"{plugin}.dll");
+            string pluginDirPath = Path.Combine(pluginsPath, plugin);
+            string pluginDllPath = Path.Combine(pluginDirPath, $"{plugin}.dll");
 
             if (!Directory.Exists(pluginDirPath))
             {
@@ -135,10 +150,10 @@ public partial class CS2_SimpleAdmin : BasePlugin, IPluginConfig<CS2_SimpleAdmin
             }
         }
 
-        foreach (var shared in _requiredShared)
+        foreach (string shared in _requiredShared)
         {
-            var sharedDirPath = Path.Combine(sharedPath, shared);
-            var sharedDllPath = Path.Combine(sharedDirPath, $"{shared}.dll");
+            string sharedDirPath = Path.Combine(sharedPath, shared);
+            string sharedDllPath = Path.Combine(sharedDirPath, $"{shared}.dll");
 
             if (!Directory.Exists(sharedDirPath))
             {
@@ -156,7 +171,7 @@ public partial class CS2_SimpleAdmin : BasePlugin, IPluginConfig<CS2_SimpleAdmin
                 missing = true;
             }
         }
-        
+
         if (missing)
         {
             Server.ExecuteCommand($"css_plugins unload {ModuleDirectory}");
@@ -164,54 +179,59 @@ public partial class CS2_SimpleAdmin : BasePlugin, IPluginConfig<CS2_SimpleAdmin
         }
 
         Instance = this;
-        
-    if (Config.DatabaseConfig.DatabaseType.Contains("mysql", StringComparison.CurrentCultureIgnoreCase))
-    {
-        if (string.IsNullOrWhiteSpace(config.DatabaseConfig.DatabaseHost) ||
-            string.IsNullOrWhiteSpace(config.DatabaseConfig.DatabaseName) ||
-            string.IsNullOrWhiteSpace(config.DatabaseConfig.DatabaseUser))
+
+        if (Config.DatabaseConfig.DatabaseType.Contains("mysql", StringComparison.CurrentCultureIgnoreCase))
         {
-            throw new Exception("[CS2-SimpleAdmin] You need to setup MySQL credentials in config!");
+            if (string.IsNullOrWhiteSpace(config.DatabaseConfig.DatabaseHost) ||
+                string.IsNullOrWhiteSpace(config.DatabaseConfig.DatabaseName) ||
+                string.IsNullOrWhiteSpace(config.DatabaseConfig.DatabaseUser))
+            {
+                throw new Exception("[CS2-SimpleAdmin] You need to setup MySQL credentials in config!");
+            }
+
+            if (!Enum.TryParse(config.DatabaseConfig.DatabaseSSlMode, true, out MySqlSslMode sslMode))
+            {
+                sslMode = MySqlSslMode.Preferred;
+            }
+
+            MySqlConnectionStringBuilder builder = new MySqlConnectionStringBuilder()
+            {
+                Server = config.DatabaseConfig.DatabaseHost,
+                Database = config.DatabaseConfig.DatabaseName,
+                UserID = config.DatabaseConfig.DatabaseUser,
+                Password = config.DatabaseConfig.DatabasePassword,
+                Port = (uint)config.DatabaseConfig.DatabasePort,
+                SslMode = sslMode,
+                Pooling = true,
+            };
+
+            DbConnectionString = builder.ConnectionString;
+            DatabaseProvider = new MySqlDatabaseProvider(DbConnectionString);
+        }
+        else
+        {
+            if (string.IsNullOrWhiteSpace(config.DatabaseConfig.SqliteFilePath))
+            {
+                throw new Exception("[CS2-SimpleAdmin] You need to specify SQLite file path in config!");
+            }
+
+            DatabaseProvider = new SqliteDatabaseProvider(ModuleDirectory + "/" + config.DatabaseConfig.SqliteFilePath);
         }
 
-        var builder = new MySqlConnectionStringBuilder()
+        (bool success, string? exception) = Task.Run(() => DatabaseProvider.CheckConnectionAsync()).GetAwaiter().GetResult();
+        if (!success)
         {
-            Server = config.DatabaseConfig.DatabaseHost,
-            Database = config.DatabaseConfig.DatabaseName,
-            UserID = config.DatabaseConfig.DatabaseUser,
-            Password = config.DatabaseConfig.DatabasePassword,
-            Port = (uint)config.DatabaseConfig.DatabasePort,
-            SslMode = Enum.TryParse(config.DatabaseConfig.DatabaseSSlMode, true, out MySqlSslMode sslMode)
-                        ? sslMode
-                        : MySqlSslMode.Preferred,
-            Pooling = true,
-        };
+            if (exception != null)
+            {
+                Logger.LogError("Problem with database connection! \n{exception}", exception);
+            }
 
-        DbConnectionString = builder.ConnectionString;
-        DatabaseProvider = new MySqlDatabaseProvider(DbConnectionString);
-    }
-    else 
-    {
-        if (string.IsNullOrWhiteSpace(config.DatabaseConfig.SqliteFilePath))
-        {
-            throw new Exception("[CS2-SimpleAdmin] You need to specify SQLite file path in config!");
+            Unload(false);
+            return;
         }
-        
-        DatabaseProvider = new SqliteDatabaseProvider(ModuleDirectory + "/" + config.DatabaseConfig.SqliteFilePath);
-    }
-
-    var (success, exception) = Task.Run(() => DatabaseProvider.CheckConnectionAsync()).GetAwaiter().GetResult();
-    if (!success)
-    {
-        if (exception != null)
-            Logger.LogError("Problem with database connection! \n{exception}", exception);
-
-        Unload(false);
-        return;
-    }
 
         Task.Run(() => DatabaseProvider.DatabaseMigrationAsync());
-        
+
         if (!Directory.Exists(ModuleDirectory + "/data"))
         {
             Directory.CreateDirectory(ModuleDirectory + "/data");
@@ -220,11 +240,15 @@ public partial class CS2_SimpleAdmin : BasePlugin, IPluginConfig<CS2_SimpleAdmin
         _localizer = Localizer;
 
         if (!string.IsNullOrEmpty(Config.Discord.DiscordLogWebhook))
+        {
             DiscordWebhookClientLog = new DiscordManager(Config.Discord.DiscordLogWebhook);
+        }
 
         if (Config.EnableUpdateCheck)
+        {
             Task.Run(async () => await PluginInfo.CheckVersion(ModuleVersion, Logger));
-        
+        }
+
         PermissionManager = new PermissionManager(DatabaseProvider);
         BanManager = new BanManager(DatabaseProvider);
         MuteManager = new MuteManager(DatabaseProvider);
@@ -233,7 +257,7 @@ public partial class CS2_SimpleAdmin : BasePlugin, IPluginConfig<CS2_SimpleAdmin
 
     internal static TargetResult? GetTarget(CommandInfo command, int argument = 1)
     {
-        var matches = command.GetArgTargetResult(argument);
+        TargetResult matches = command.GetArgTargetResult(argument);
 
         if (!matches.Any())
         {
@@ -242,10 +266,14 @@ public partial class CS2_SimpleAdmin : BasePlugin, IPluginConfig<CS2_SimpleAdmin
         }
 
         if (command.GetArg(argument).StartsWith('@'))
+        {
             return matches;
+        }
 
         if (matches.Count() == 1)
+        {
             return matches;
+        }
 
         command.ReplyToCommand($"Multiple targets found for \"{command.GetArg(argument)}\".");
         return null;
@@ -257,12 +285,16 @@ public partial class CS2_SimpleAdmin : BasePlugin, IPluginConfig<CS2_SimpleAdmin
         CacheManager = null;
         PlayersTimer?.Kill();
         PlayersTimer = null;
-        
+
         UnregisterEvents();
-        
+
         if (hotReload)
+        {
             PlayersInfo.Clear();
+        }
         else
+        {
             Server.ExecuteCommand($"css_plugins unload {ModuleDirectory}");
+        }
     }
 }

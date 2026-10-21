@@ -7,7 +7,7 @@ namespace CS2_SimpleAdmin.Managers;
 
 public class DiscordManager(string webhookUrl)
 {
-    
+
     /// <summary>
     /// Sends a plain text message asynchronously to the configured Discord webhook URL.
     /// </summary>
@@ -16,23 +16,23 @@ public class DiscordManager(string webhookUrl)
     [UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code", Justification = "<Pending>")]
     public async Task SendMessageAsync(string message)
     {
-        var client = CS2_SimpleAdmin.HttpClient;
-        var payload = new
+        HttpClient client = CS2_SimpleAdmin.HttpClient;
+        Dictionary<string, object> payload = new Dictionary<string, object>
         {
-            content = message
+            ["content"] = message
         };
 
-        var options = new JsonSerializerOptions
+        JsonSerializerOptions options = new JsonSerializerOptions
         {
             WriteIndented = false
         };
 
-        var json = JsonSerializer.Serialize(payload, options);
-        var content = new StringContent(json, Encoding.UTF8, "application/json");
+        string json = JsonSerializer.Serialize(payload, options);
+        StringContent content = new StringContent(json, Encoding.UTF8, "application/json");
 
         try
         {
-            var response = await client.PostAsync(webhookUrl, content);
+            HttpResponseMessage response = await client.PostAsync(webhookUrl, content);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -54,48 +54,75 @@ public class DiscordManager(string webhookUrl)
     [UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code", Justification = "<Pending>")]
     public async Task SendEmbedAsync(Embed embed)
     {
-        var httpClient = CS2_SimpleAdmin.HttpClient;
+        HttpClient httpClient = CS2_SimpleAdmin.HttpClient;
 
-        var payload = new
+        // Same JSON as before: every key is written, null when the part is empty
+        Dictionary<string, object?> embedPayload = new Dictionary<string, object?>
         {
-            embeds = new[]
-            {
-                new
-                {
-                    color = embed.Color,
-                    title = !string.IsNullOrEmpty(embed.Title) ? embed.Title : null,
-                    description = !string.IsNullOrEmpty(embed.Description) ? embed.Description : null,
-                    thumbnail = !string.IsNullOrEmpty(embed.ThumbnailUrl) ? new { url = embed.ThumbnailUrl } : null,
-                    image = !string.IsNullOrEmpty(embed.ImageUrl) ? new { url = embed.ImageUrl } : null,
-                    footer = !string.IsNullOrEmpty(embed.Footer?.Text) ? new { text = embed.Footer.Text, icon_url = embed.Footer.IconUrl } : null,
-                    timestamp = embed.Timestamp,
-                    fields = embed.Fields.Count > 0 ? embed.Fields.Select(field => new
-                    {
-                        name = field.Name,
-                        value = field.Value,
-                        inline = field.Inline
-                    }).ToArray() : null
-                }
-            }
+            ["color"] = embed.Color,
+            ["title"] = null,
+            ["description"] = null,
+            ["thumbnail"] = null,
+            ["image"] = null,
+            ["footer"] = null,
+            ["timestamp"] = embed.Timestamp,
+            ["fields"] = null
         };
 
-        var options = new JsonSerializerOptions
+        if (!string.IsNullOrEmpty(embed.Title))
+        {
+            embedPayload["title"] = embed.Title;
+        }
+
+        if (!string.IsNullOrEmpty(embed.Description))
+        {
+            embedPayload["description"] = embed.Description;
+        }
+
+        if (!string.IsNullOrEmpty(embed.ThumbnailUrl))
+        {
+            embedPayload["thumbnail"] = new Dictionary<string, object?> { ["url"] = embed.ThumbnailUrl };
+        }
+
+        if (!string.IsNullOrEmpty(embed.ImageUrl))
+        {
+            embedPayload["image"] = new Dictionary<string, object?> { ["url"] = embed.ImageUrl };
+        }
+
+        if (embed.Footer != null && !string.IsNullOrEmpty(embed.Footer.Text))
+        {
+            embedPayload["footer"] = new Dictionary<string, object?> { ["text"] = embed.Footer.Text, ["icon_url"] = embed.Footer.IconUrl };
+        }
+
+        if (embed.Fields.Count > 0)
+        {
+            embedPayload["fields"] = embed.Fields
+                .Select(field => new Dictionary<string, object?> { ["name"] = field.Name, ["value"] = field.Value, ["inline"] = field.Inline })
+                .ToArray();
+        }
+
+        Dictionary<string, object> payload = new Dictionary<string, object>
+        {
+            ["embeds"] = new[] { embedPayload }
+        };
+
+        JsonSerializerOptions options = new JsonSerializerOptions
         {
             WriteIndented = false
         };
 
-        var jsonPayload = JsonSerializer.Serialize(payload, options);
-        var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
+        string jsonPayload = JsonSerializer.Serialize(payload, options);
+        StringContent content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
 
-        var response = await httpClient.PostAsync(webhookUrl, content);
+        HttpResponseMessage response = await httpClient.PostAsync(webhookUrl, content);
 
         if (!response.IsSuccessStatusCode)
         {
-            var errorMessage = await response.Content.ReadAsStringAsync();
+            string errorMessage = await response.Content.ReadAsStringAsync();
             CS2_SimpleAdmin._logger?.LogError($"Failed to send embed: {response.StatusCode} - {errorMessage}");
         }
     }
-    
+
     /// <summary>
     /// Converts a hexadecimal color string (e.g. "#FF0000") to its integer representation.
     /// </summary>
@@ -135,13 +162,13 @@ public class Embed
     /// <param name="inline">Whether the field should be displayed inline with other fields.</param>
     public void AddField(string name, string value, bool inline)
     {
-        var field = new EmbedField
+        EmbedField field = new EmbedField
         {
             Name = name,
             Value = value,
             Inline = inline
         };
-        
+
         Fields.Add(field);
     }
 }

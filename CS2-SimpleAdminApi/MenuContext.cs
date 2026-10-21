@@ -1,5 +1,3 @@
-using CounterStrikeSharp.API.Core;
-
 namespace CS2_SimpleAdminApi;
 
 /// <summary>

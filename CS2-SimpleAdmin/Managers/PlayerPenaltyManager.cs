@@ -1,5 +1,5 @@
-﻿using CS2_SimpleAdminApi;
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
+using CS2_SimpleAdminApi;
 
 namespace CS2_SimpleAdmin.Managers;
 
@@ -20,7 +20,7 @@ public static class PlayerPenaltyManager
         Penalties.AddOrUpdate(slot,
             (_) =>
             {
-                var dict = new Dictionary<PenaltyType, List<(DateTime, int, bool)>>
+                Dictionary<PenaltyType, List<(DateTime, int, bool)>> dict = new Dictionary<PenaltyType, List<(DateTime, int, bool)>>
                 {
                     [penaltyType] = [(endDateTime, durationInMinutes, false)]
                 };
@@ -28,7 +28,7 @@ public static class PlayerPenaltyManager
             },
             (_, existingDict) =>
             {
-                if (!existingDict.TryGetValue(penaltyType, out var value))
+                if (!existingDict.TryGetValue(penaltyType, out List<(DateTime EndDateTime, int Duration, bool Passed)>? value))
                 {
                     value = new List<(DateTime, int, bool)>();
                     existingDict[penaltyType] = value;
@@ -50,21 +50,27 @@ public static class PlayerPenaltyManager
     {
         endDateTime = null;
 
-        if (!Penalties.TryGetValue(slot, out var penaltyDict) ||
-            !penaltyDict.TryGetValue(penaltyType, out var penaltiesList)) return false;
+        if (!Penalties.TryGetValue(slot, out Dictionary<PenaltyType, List<(DateTime EndDateTime, int Duration, bool Passed)>>? penaltyDict) ||
+            !penaltyDict.TryGetValue(penaltyType, out List<(DateTime EndDateTime, int Duration, bool Passed)>? penaltiesList))
+        {
+            return false;
+        }
 
         if (CS2_SimpleAdmin.Instance.Config.OtherSettings.TimeMode == 0)
         {
-            if (penaltiesList.Count == 0) return false;
-            
+            if (penaltiesList.Count == 0)
+            {
+                return false;
+            }
+
             endDateTime = penaltiesList.First().EndDateTime;
             return true;
         }
 
-        var now = Time.ActualDateTime();
+        DateTime now = Time.ActualDateTime();
 
         // Check if any active penalties exist
-        foreach (var penalty in penaltiesList.ToList())
+        foreach ((DateTime EndDateTime, int Duration, bool Passed) penalty in penaltiesList.ToList())
         {
             // Check if the penalty is still active
             if (penalty.Duration > 0 && now >= penalty.EndDateTime)
@@ -95,14 +101,14 @@ public static class PlayerPenaltyManager
     /// <returns>A list of penalties if found, otherwise an empty list.</returns>
     public static List<(DateTime EndDateTime, int Duration, bool Passed)> GetPlayerPenalties(int slot, PenaltyType penaltyType)
     {
-        if (Penalties.TryGetValue(slot, out var penaltyDict) &&
-            penaltyDict.TryGetValue(penaltyType, out var penaltiesList))
+        if (Penalties.TryGetValue(slot, out Dictionary<PenaltyType, List<(DateTime EndDateTime, int Duration, bool Passed)>>? penaltyDict) &&
+            penaltyDict.TryGetValue(penaltyType, out List<(DateTime EndDateTime, int Duration, bool Passed)>? penaltiesList))
         {
             return penaltiesList;
         }
         return [];
     }
-    
+
     /// <summary>
     /// Retrieves all penalties for a player across multiple penalty types.
     /// </summary>
@@ -113,11 +119,11 @@ public static class PlayerPenaltyManager
     {
         List<(DateTime EndDateTime, int Duration, bool Passed)> result = [];
 
-        if (Penalties.TryGetValue(slot, out var penaltyDict))
+        if (Penalties.TryGetValue(slot, out Dictionary<PenaltyType, List<(DateTime EndDateTime, int Duration, bool Passed)>>? penaltyDict))
         {
-            foreach (var type in penaltyType)
+            foreach (PenaltyType type in penaltyType)
             {
-                if (penaltyDict.TryGetValue(type, out var penaltiesList))
+                if (penaltyDict.TryGetValue(type, out List<(DateTime EndDateTime, int Duration, bool Passed)>? penaltiesList))
                 {
                     result.AddRange(penaltiesList);
                 }
@@ -126,7 +132,7 @@ public static class PlayerPenaltyManager
 
         return result;
     }
-    
+
     /// <summary>
     /// Retrieves all penalties for a player across all penalty types.
     /// </summary>
@@ -134,12 +140,12 @@ public static class PlayerPenaltyManager
     /// <returns>A dictionary with penalty types as keys and lists of penalties as values.</returns>
     public static Dictionary<PenaltyType, List<(DateTime EndDateTime, int Duration, bool Passed)>> GetAllPlayerPenalties(int slot)
     {
-        // Check if the player has any penalties in the dictionary
-        return Penalties.TryGetValue(slot, out var penaltyDict) ?
-            // Return all penalty types and their respective penalties for the player
-            penaltyDict :
-            // If the player has no penalties, return an empty dictionary
-            new Dictionary<PenaltyType, List<(DateTime EndDateTime, int Duration, bool Passed)>>();
+        if (Penalties.TryGetValue(slot, out Dictionary<PenaltyType, List<(DateTime EndDateTime, int Duration, bool Passed)>>? penaltyDict))
+        {
+            return penaltyDict;
+        }
+
+        return new Dictionary<PenaltyType, List<(DateTime EndDateTime, int Duration, bool Passed)>>();
     }
 
     /// <summary>
@@ -179,7 +185,7 @@ public static class PlayerPenaltyManager
     /// <param name="penaltyType">The penalty type to remove.</param>
     public static void RemovePenaltiesByType(int slot, PenaltyType penaltyType)
     {
-        if (Penalties.TryGetValue(slot, out var penaltyDict) &&
+        if (Penalties.TryGetValue(slot, out Dictionary<PenaltyType, List<(DateTime EndDateTime, int Duration, bool Passed)>>? penaltyDict) &&
             penaltyDict.ContainsKey(penaltyType))
         {
             penaltyDict.Remove(penaltyType);
@@ -193,15 +199,21 @@ public static class PlayerPenaltyManager
     /// <param name="dateTime">The end datetime of penalties to mark as passed.</param>
     public static void RemovePenaltiesByDateTime(int slot, DateTime dateTime)
     {
-        if (!Penalties.TryGetValue(slot, out var penaltyDict)) return;
-
-        foreach (var penaltiesList in penaltyDict.Values)
+        if (!Penalties.TryGetValue(slot, out Dictionary<PenaltyType, List<(DateTime EndDateTime, int Duration, bool Passed)>>? penaltyDict))
         {
-            for (var i = 0; i < penaltiesList.Count; i++)
+            return;
+        }
+
+        foreach (List<(DateTime EndDateTime, int Duration, bool Passed)> penaltiesList in penaltyDict.Values)
+        {
+            for (int i = 0; i < penaltiesList.Count; i++)
             {
-                if (penaltiesList[i].EndDateTime != dateTime) continue;
+                if (penaltiesList[i].EndDateTime != dateTime)
+                {
+                    continue;
+                }
                 // Create a copy of the penalty
-                var penalty = penaltiesList[i];
+                (DateTime EndDateTime, int Duration, bool Passed) penalty = penaltiesList[i];
 
                 // Update the end datetime of the copied penalty to the current datetime
                 penalty.Passed = true;
@@ -223,10 +235,10 @@ public static class PlayerPenaltyManager
     {
         if (CS2_SimpleAdmin.Instance.Config.OtherSettings.TimeMode == 0)
         {
-            foreach (var (playerSlot, penaltyDict) in Penalties.ToList()) // Use ToList to avoid modification while iterating
+            foreach ((int playerSlot, Dictionary<PenaltyType, List<(DateTime EndDateTime, int Duration, bool Passed)>>? penaltyDict) in Penalties.ToList()) // Use ToList to avoid modification while iterating
             {
                 // Remove expired penalties for the player
-                foreach (var penaltiesList in penaltyDict.Values)
+                foreach (List<(DateTime EndDateTime, int Duration, bool Passed)>? penaltiesList in penaltyDict.Values)
                 {
                     penaltiesList.RemoveAll(p => p is { Duration: > 0, Passed: true });
                 }
@@ -241,10 +253,10 @@ public static class PlayerPenaltyManager
             return;
         }
 
-        var now = Time.ActualDateTime();
-        foreach (var (playerSlot, penaltyDict) in Penalties.ToList()) // Use ToList to avoid modification while iterating
+        DateTime now = Time.ActualDateTime();
+        foreach ((int playerSlot, Dictionary<PenaltyType, List<(DateTime EndDateTime, int Duration, bool Passed)>>? penaltyDict) in Penalties.ToList()) // Use ToList to avoid modification while iterating
         {
-            foreach (var penaltiesList in penaltyDict.Values)
+            foreach (List<(DateTime EndDateTime, int Duration, bool Passed)>? penaltiesList in penaltyDict.Values)
             {
                 penaltiesList.RemoveAll(p => p.Duration > 0 && now >= p.EndDateTime);
             }

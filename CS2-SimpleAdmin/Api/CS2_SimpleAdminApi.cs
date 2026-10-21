@@ -18,9 +18,12 @@ public class CS2_SimpleAdminApi : ICS2_SimpleAdminApi
 
     public PlayerInfo GetPlayerInfo(CCSPlayerController player)
     {
-        return !player.UserId.HasValue
-            ? throw new KeyNotFoundException("Player with specific UserId not found")
-            : CS2_SimpleAdmin.PlayersInfo[player.SteamID];
+        if (!player.UserId.HasValue)
+        {
+            throw new KeyNotFoundException("Player with specific UserId not found");
+        }
+
+        return CS2_SimpleAdmin.PlayersInfo[player.SteamID];
     }
 
     public string GetConnectionString() => CS2_SimpleAdmin.Instance.DbConnectionString;
@@ -57,35 +60,35 @@ public class CS2_SimpleAdminApi : ICS2_SimpleAdminApi
         switch (penaltyType)
         {
             case PenaltyType.Ban:
-            {
-                CS2_SimpleAdmin.Instance.Ban(admin, player, duration, reason);
-                break;
-            }
+                {
+                    CS2_SimpleAdmin.Instance.Ban(admin, player, duration, reason);
+                    break;
+                }
             case PenaltyType.Kick:
-            {
-                CS2_SimpleAdmin.Instance.Kick(admin, player, reason);
-                break;
-            }
+                {
+                    CS2_SimpleAdmin.Instance.Kick(admin, player, reason);
+                    break;
+                }
             case PenaltyType.Gag:
-            {
-                CS2_SimpleAdmin.Instance.Gag(admin, player, duration, reason);
-                break;
-            }
+                {
+                    CS2_SimpleAdmin.Instance.Gag(admin, player, duration, reason);
+                    break;
+                }
             case PenaltyType.Mute:
-            {
-                CS2_SimpleAdmin.Instance.Mute(admin, player, duration, reason);
-                break;
-            }
+                {
+                    CS2_SimpleAdmin.Instance.Mute(admin, player, duration, reason);
+                    break;
+                }
             case PenaltyType.Silence:
-            {
-                CS2_SimpleAdmin.Instance.Silence(admin, player, duration, reason);
-                break;
-            }
+                {
+                    CS2_SimpleAdmin.Instance.Silence(admin, player, duration, reason);
+                    break;
+                }
             case PenaltyType.Warn:
-            {
-                CS2_SimpleAdmin.Instance.Warn(admin, player, duration, reason);
-                break;
-            }
+                {
+                    CS2_SimpleAdmin.Instance.Warn(admin, player, duration, reason);
+                    break;
+                }
             default:
                 throw new ArgumentOutOfRangeException(nameof(penaltyType), penaltyType, null);
         }
@@ -97,30 +100,30 @@ public class CS2_SimpleAdminApi : ICS2_SimpleAdminApi
         switch (penaltyType)
         {
             case PenaltyType.Ban:
-            {
-                CS2_SimpleAdmin.Instance.AddBan(admin, steamid, duration, reason);
-                break;
-            }
+                {
+                    CS2_SimpleAdmin.Instance.AddBan(admin, steamid, duration, reason);
+                    break;
+                }
             case PenaltyType.Gag:
-            {
-                CS2_SimpleAdmin.Instance.AddGag(admin, steamid, duration, reason);
-                break;
-            }
+                {
+                    CS2_SimpleAdmin.Instance.AddGag(admin, steamid, duration, reason);
+                    break;
+                }
             case PenaltyType.Mute:
-            {
-                CS2_SimpleAdmin.Instance.AddMute(admin, steamid, duration, reason);
-                break;
-            }
+                {
+                    CS2_SimpleAdmin.Instance.AddMute(admin, steamid, duration, reason);
+                    break;
+                }
             case PenaltyType.Silence:
-            {
-                CS2_SimpleAdmin.Instance.AddSilence(admin, steamid, duration, reason);
-                break;
-            }
+                {
+                    CS2_SimpleAdmin.Instance.AddSilence(admin, steamid, duration, reason);
+                    break;
+                }
             case PenaltyType.Warn:
-            {
-                CS2_SimpleAdmin.Instance.AddWarn(admin, steamid, duration, reason);
-                break;
-            }
+                {
+                    CS2_SimpleAdmin.Instance.AddWarn(admin, steamid, duration, reason);
+                    break;
+                }
             default:
                 throw new ArgumentOutOfRangeException(nameof(penaltyType), penaltyType, null);
         }
@@ -149,27 +152,31 @@ public class CS2_SimpleAdminApi : ICS2_SimpleAdminApi
     public void RegisterCommand(string name, string? description, CommandInfo.CommandCallback callback)
     {
         if (string.IsNullOrWhiteSpace(name))
+        {
             throw new ArgumentException("Command name cannot be null or empty.", nameof(name));
+        }
 
         ArgumentNullException.ThrowIfNull(callback);
 
-        var definition = new CommandDefinition(name, description ?? "No description", callback);
-        if (!RegisterCommands._commandDefinitions.TryGetValue(name, out var list))
+        CommandDefinition definition = new CommandDefinition(name, description ?? "No description", callback);
+        if (!RegisterCommands._commandDefinitions.TryGetValue(name, out IList<CommandDefinition>? list))
         {
             list = new List<CommandDefinition>();
             RegisterCommands._commandDefinitions[name] = list;
         }
-        
+
         list.Add(definition);
     }
 
     public void UnRegisterCommand(string commandName)
     {
-        var definitions = RegisterCommands._commandDefinitions[commandName];
+        IList<CommandDefinition> definitions = RegisterCommands._commandDefinitions[commandName];
         if (definitions.Count == 0)
+        {
             return;
+        }
 
-        foreach (var definition in definitions)
+        foreach (CommandDefinition definition in definitions)
         {
             CS2_SimpleAdmin.Instance.RemoveCommand(commandName, definition.Callback);
         }
@@ -196,7 +203,9 @@ public class CS2_SimpleAdminApi : ICS2_SimpleAdminApi
         bool dontPublish = false, params object[] messageArgs)
     {
         if (moduleLocalizer is not IStringLocalizer localizer)
+        {
             throw new InvalidOperationException("moduleLocalizer must be an IStringLocalizer instance");
+        }
 
         Helper.ShowAdminActivityLocalized(localizer, messageKey, callerName, dontPublish, messageArgs);
     }
@@ -209,7 +218,9 @@ public class CS2_SimpleAdminApi : ICS2_SimpleAdminApi
     public void RegisterMenuCategory(string categoryId, string categoryNameKey, string permission, object moduleLocalizer)
     {
         if (moduleLocalizer is not IStringLocalizer localizer)
+        {
             throw new InvalidOperationException("moduleLocalizer must be an IStringLocalizer instance");
+        }
 
         Menus.MenuManager.Instance.RegisterCategory(categoryId, categoryNameKey, permission, localizer);
     }
@@ -223,22 +234,11 @@ public class CS2_SimpleAdminApi : ICS2_SimpleAdminApi
         MenuBuilder BuilderFactory(CCSPlayerController player)
         {
             if (menuFactory(player) is not MenuBuilder menuBuilder)
-                throw new InvalidOperationException("Menu factory must return MenuBuilder");
-
-            // Dodaj automatyczną obsługę przycisku 'Wróć'
-            menuBuilder.WithBackAction(p =>
             {
-                if (Menus.MenuManager.Instance.GetMenuCategories().TryGetValue(categoryId, out var category))
-                {
-                    Menus.MenuManager.Instance.CreateCategoryMenuPublic(category, p).OpenMenu(p);
-                }
-                else
-                {
-                    Menus.MenuManager.Instance.OpenMainMenu(p);
-                }
-            });
+                throw new InvalidOperationException("Menu factory must return MenuBuilder");
+            }
 
-            return menuBuilder;
+            return menuBuilder.WithBackButton();
         }
     }
 
@@ -250,25 +250,14 @@ public class CS2_SimpleAdminApi : ICS2_SimpleAdminApi
 
         MenuBuilder BuilderFactory(CCSPlayerController player)
         {
-            var context = new MenuContext(categoryId, menuId, menuName, permission, commandName);
+            MenuContext context = new MenuContext(categoryId, menuId, menuName, permission, commandName);
 
             if (menuFactory(player, context) is not MenuBuilder menuBuilder)
-                throw new InvalidOperationException("Menu factory must return MenuBuilder");
-
-            // Dodaj automatyczną obsługę przycisku 'Wróć'
-            menuBuilder.WithBackAction(p =>
             {
-                if (Menus.MenuManager.Instance.GetMenuCategories().TryGetValue(categoryId, out var category))
-                {
-                    Menus.MenuManager.Instance.CreateCategoryMenuPublic(category, p).OpenMenu(p);
-                }
-                else
-                {
-                    Menus.MenuManager.Instance.OpenMainMenu(p);
-                }
-            });
+                throw new InvalidOperationException("Menu factory must return MenuBuilder");
+            }
 
-            return menuBuilder;
+            return menuBuilder.WithBackButton();
         }
     }
 
@@ -276,32 +265,23 @@ public class CS2_SimpleAdminApi : ICS2_SimpleAdminApi
         Func<CCSPlayerController, MenuContext, object> menuFactory, string? permission, string? commandName, object moduleLocalizer)
     {
         if (moduleLocalizer is not IStringLocalizer localizer)
+        {
             throw new InvalidOperationException("moduleLocalizer must be an IStringLocalizer instance");
+        }
 
         Menus.MenuManager.Instance.RegisterMenu(categoryId, menuId, menuNameKey, BuilderFactory, permission, commandName, localizer);
         return;
 
         MenuBuilder BuilderFactory(CCSPlayerController player)
         {
-            var context = new MenuContext(categoryId, menuId, menuNameKey, permission, commandName);
+            MenuContext context = new MenuContext(categoryId, menuId, menuNameKey, permission, commandName);
 
             if (menuFactory(player, context) is not MenuBuilder menuBuilder)
-                throw new InvalidOperationException("Menu factory must return MenuBuilder");
-
-            // Dodaj automatyczną obsługę przycisku 'Wróć'
-            menuBuilder.WithBackAction(p =>
             {
-                if (Menus.MenuManager.Instance.GetMenuCategories().TryGetValue(categoryId, out var category))
-                {
-                    Menus.MenuManager.Instance.CreateCategoryMenuPublic(category, p).OpenMenu(p);
-                }
-                else
-                {
-                    Menus.MenuManager.Instance.OpenMainMenu(p);
-                }
-            });
+                throw new InvalidOperationException("Menu factory must return MenuBuilder");
+            }
 
-            return menuBuilder;
+            return menuBuilder.WithBackButton();
         }
     }
 
@@ -313,20 +293,7 @@ public class CS2_SimpleAdminApi : ICS2_SimpleAdminApi
 
     public object CreateMenuWithBack(string title, string categoryId, CCSPlayerController player)
     {
-        var builder = new MenuBuilder(title);
-        builder.WithBackAction(p =>
-        {
-            if (Menus.MenuManager.Instance.GetMenuCategories().TryGetValue(categoryId, out var category))
-            {
-                Menus.MenuManager.Instance.CreateCategoryMenuPublic(category, p).OpenMenu(p);
-            }
-            else
-            {
-                Menus.MenuManager.Instance.OpenMainMenu(p);
-            }
-        });
-
-        return builder;
+        return new MenuBuilder(title).WithBackButton();
     }
 
     public object CreateMenuWithBack(MenuContext context, CCSPlayerController player)
@@ -334,10 +301,10 @@ public class CS2_SimpleAdminApi : ICS2_SimpleAdminApi
         // Get translated title if module has localizer
         string title = context.MenuTitle;
 
-        if (Menus.MenuManager.Instance.GetMenuCategories().TryGetValue(context.CategoryId, out var category))
+        if (Menus.MenuManager.Instance.GetMenuCategories().TryGetValue(context.CategoryId, out MenuCategory? category))
         {
             // Check if this specific menu has a localizer
-            if (category.MenuLocalizers.TryGetValue(context.MenuId, out var menuLocalizer))
+            if (category.MenuLocalizers.TryGetValue(context.MenuId, out IStringLocalizer? menuLocalizer))
             {
                 using (new WithTemporaryCulture(player.GetLanguage()))
                 {
@@ -365,12 +332,12 @@ public class CS2_SimpleAdminApi : ICS2_SimpleAdminApi
     public object CreateMenuWithPlayers(string title, string categoryId, CCSPlayerController admin,
         Func<CCSPlayerController, bool> filter, Action<CCSPlayerController, CCSPlayerController> onSelect)
     {
-        var menu = (MenuBuilder)CreateMenuWithBack(title, categoryId, admin);
-        var players = Helper.GetValidPlayers().Where(filter);
+        MenuBuilder menu = (MenuBuilder)CreateMenuWithBack(title, categoryId, admin);
+        IEnumerable<CCSPlayerController> players = Helper.GetValidPlayers().Where(filter);
 
-        foreach (var player in players)
+        foreach (CCSPlayerController? player in players)
         {
-            var playerName = player.PlayerName.Length > 26 ? player.PlayerName[..26] : player.PlayerName;
+            string playerName = Helper.Truncate(player.PlayerName, 26);
             menu.AddOption(playerName, _ =>
             {
                 if (player.IsValid)
@@ -389,10 +356,10 @@ public class CS2_SimpleAdminApi : ICS2_SimpleAdminApi
         // Get translated title if module has localizer
         string title = context.MenuTitle;
 
-        if (Menus.MenuManager.Instance.GetMenuCategories().TryGetValue(context.CategoryId, out var category))
+        if (Menus.MenuManager.Instance.GetMenuCategories().TryGetValue(context.CategoryId, out MenuCategory? category))
         {
             // Check if this specific menu has a localizer
-            if (category.MenuLocalizers.TryGetValue(context.MenuId, out var menuLocalizer))
+            if (category.MenuLocalizers.TryGetValue(context.MenuId, out IStringLocalizer? menuLocalizer))
             {
                 using (new WithTemporaryCulture(admin.GetLanguage()))
                 {
@@ -416,7 +383,9 @@ public class CS2_SimpleAdminApi : ICS2_SimpleAdminApi
         string? permission = null)
     {
         if (menu is not MenuBuilder menuBuilder)
+        {
             throw new InvalidOperationException("Menu must be a MenuBuilder instance");
+        }
 
         menuBuilder.AddOption(name, action, disabled, permission);
     }
@@ -425,13 +394,18 @@ public class CS2_SimpleAdminApi : ICS2_SimpleAdminApi
         bool disabled = false, string? permission = null)
     {
         if (menu is not MenuBuilder menuBuilder)
+        {
             throw new InvalidOperationException("Menu must be a MenuBuilder instance");
+        }
 
         menuBuilder.AddSubMenu(name, player =>
         {
-            var subMenu = subMenuFactory(player);
+            object subMenu = subMenuFactory(player);
             if (subMenu is not MenuBuilder builder)
+            {
                 throw new InvalidOperationException("SubMenu factory must return MenuBuilder");
+            }
+
             return builder;
         }, disabled, permission);
     }
@@ -439,7 +413,9 @@ public class CS2_SimpleAdminApi : ICS2_SimpleAdminApi
     public void OpenMenu(object menu, CCSPlayerController player)
     {
         if (menu is not MenuBuilder menuBuilder)
+        {
             throw new InvalidOperationException("Menu must be a MenuBuilder instance");
+        }
 
         menuBuilder.OpenMenu(player);
     }

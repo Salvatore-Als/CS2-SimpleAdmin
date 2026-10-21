@@ -1,4 +1,4 @@
-using CounterStrikeSharp.API;
+using System.Data.Common;
 using CounterStrikeSharp.API.Modules.Cvars;
 using Dapper;
 using Microsoft.Extensions.Logging;
@@ -15,13 +15,15 @@ public class ServerManager
     /// </summary>
     public static void CheckHibernationStatus()
     {
-        var convar = ConVar.Find("sv_hibernate_when_empty");
+        ConVar? convar = ConVar.Find("sv_hibernate_when_empty");
         if (convar == null || !convar.GetPrimitiveValue<bool>())
+        {
             return;
-        
+        }
+
         CS2_SimpleAdmin._logger?.LogError("Detected setting \"sv_hibernate_when_empty true\", set false to make plugin work properly");
     }
-    
+
     /// <summary>
     /// Initiates the asynchronous process to load server data such as IP address, port, hostname, and RCON password.
     /// Handles retry attempts if IP address is not immediately available.
@@ -33,11 +35,14 @@ public class ServerManager
     {
         CS2_SimpleAdmin.Instance.AddTimer(1.0f, () =>
         {
-            if (CS2_SimpleAdmin.ServerLoaded || CS2_SimpleAdmin.DatabaseProvider == null) return;
+            if (CS2_SimpleAdmin.ServerLoaded || CS2_SimpleAdmin.DatabaseProvider == null)
+            {
+                return;
+            }
 
             // Optimization: Get server IP once and reuse
-            var serverIp = Helper.GetServerIp();
-            var isInvalidIp = string.IsNullOrEmpty(serverIp) || serverIp.StartsWith("0.0.0");
+            string serverIp = Helper.GetServerIp();
+            bool isInvalidIp = string.IsNullOrEmpty(serverIp) || serverIp.StartsWith("0.0.0");
 
             // Check if we've exceeded retry limit with invalid IP
             if (_getIpTryCount > 32 && isInvalidIp)
@@ -49,8 +54,8 @@ public class ServerManager
             }
 
             // Optimization: Cache ConVar lookups
-            var ipConVar = ConVar.Find("ip");
-            var ipAddress = ipConVar?.StringValue;
+            ConVar? ipConVar = ConVar.Find("ip");
+            string? ipAddress = ipConVar?.StringValue;
 
             // Use Helper IP if ConVar IP is invalid
             if (string.IsNullOrEmpty(ipAddress) || ipAddress.StartsWith("0.0.0"))
@@ -67,20 +72,20 @@ public class ServerManager
             }
 
             // Optimization: Cache remaining ConVar lookups
-            var hostportConVar = ConVar.Find("hostport");
-            var hostnameConVar = ConVar.Find("hostname");
-            var rconPasswordConVar = ConVar.Find("rcon_password");
+            ConVar? hostportConVar = ConVar.Find("hostport");
+            ConVar? hostnameConVar = ConVar.Find("hostname");
+            ConVar? rconPasswordConVar = ConVar.Find("rcon_password");
 
-            var address = $"{ipAddress}:{hostportConVar?.GetPrimitiveValue<int>()}";
-            var hostname = hostnameConVar?.StringValue ?? CS2_SimpleAdmin._localizer?["sa_unknown"] ?? "Unknown";
-            var rconPassword = rconPasswordConVar?.StringValue ?? "";
+            string address = $"{ipAddress}:{hostportConVar?.GetPrimitiveValue<int>()}";
+            string hostname = hostnameConVar?.StringValue ?? CS2_SimpleAdmin._localizer?["sa_unknown"] ?? "Unknown";
+            string rconPassword = rconPasswordConVar?.StringValue ?? "";
             CS2_SimpleAdmin.IpAddress = address;
-            
+
             Task.Run(async () =>
             {
                 try
                 {
-                    await using var connection = await CS2_SimpleAdmin.DatabaseProvider.CreateConnectionAsync();
+                    await using DbConnection connection = await CS2_SimpleAdmin.DatabaseProvider.CreateConnectionAsync();
                     int? serverId = await connection.ExecuteScalarAsync<int?>(
                         "SELECT id FROM sa_servers WHERE address = @address",
                         new { address });
@@ -126,8 +131,8 @@ public class ServerManager
 
                 if (CS2_SimpleAdmin.Instance.Config.EnableMetrics)
                 {
-                    var queryString = $"?address={address}&hostname={hostname}";
-                    var client = CS2_SimpleAdmin.HttpClient;
+                    string queryString = $"?address={address}&hostname={hostname}";
+                    HttpClient client = CS2_SimpleAdmin.HttpClient;
 
                     try
                     {
@@ -139,7 +144,7 @@ public class ServerManager
                     }
                 }
             });
-            
+
             CS2_SimpleAdmin.SimpleAdminApi?.OnSimpleAdminReadyEvent();
         });
     }

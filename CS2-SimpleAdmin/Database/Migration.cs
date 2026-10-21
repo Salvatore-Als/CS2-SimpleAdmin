@@ -12,12 +12,19 @@ public class Migration(string migrationsPath)
     /// </summary>
     public async Task ExecuteMigrationsAsync()
     {
-        if (CS2_SimpleAdmin.DatabaseProvider == null) return;
-        var files = Directory.GetFiles(migrationsPath, "*.sql").OrderBy(f => f).ToList();
-        if (files.Count == 0) return;
+        if (CS2_SimpleAdmin.DatabaseProvider == null)
+        {
+            return;
+        }
 
-        await using var connection = await CS2_SimpleAdmin.DatabaseProvider.CreateConnectionAsync();
-        await using (var cmd = connection.CreateCommand())
+        List<string> files = Directory.GetFiles(migrationsPath, "*.sql").OrderBy(f => f).ToList();
+        if (files.Count == 0)
+        {
+            return;
+        }
+
+        await using DbConnection connection = await CS2_SimpleAdmin.DatabaseProvider.CreateConnectionAsync();
+        await using (DbCommand cmd = connection.CreateCommand())
         {
             if (migrationsPath.Contains("sqlite", StringComparison.CurrentCultureIgnoreCase))
             {
@@ -42,19 +49,21 @@ public class Migration(string migrationsPath)
             await cmd.ExecuteNonQueryAsync();
         }
 
-        var lastAppliedVersion = await GetLastAppliedVersionAsync(connection);
+        string lastAppliedVersion = await GetLastAppliedVersionAsync(connection);
 
-        foreach (var file in files)
+        foreach (string file in files)
         {
-            var version = Path.GetFileNameWithoutExtension(file);
+            string version = Path.GetFileNameWithoutExtension(file);
             if (string.Compare(version, lastAppliedVersion, StringComparison.OrdinalIgnoreCase) <= 0)
+            {
                 continue;
+            }
 
             try
             {
-                var sqlScript = await File.ReadAllTextAsync(file);
+                string sqlScript = await File.ReadAllTextAsync(file);
 
-                await using (var cmdMigration = connection.CreateCommand())
+                await using (DbCommand cmdMigration = connection.CreateCommand())
                 {
                     cmdMigration.CommandText = sqlScript;
                     await cmdMigration.ExecuteNonQueryAsync();
@@ -79,9 +88,9 @@ public class Migration(string migrationsPath)
     /// <returns>The version string of the last applied migration, or empty string if none.</returns>
     private static async Task<string> GetLastAppliedVersionAsync(DbConnection connection)
     {
-        await using var cmd = connection.CreateCommand();
+        await using DbCommand cmd = connection.CreateCommand();
         cmd.CommandText = "SELECT version FROM sa_migrations ORDER BY id DESC LIMIT 1;";
-        var result = await cmd.ExecuteScalarAsync();
+        object? result = await cmd.ExecuteScalarAsync();
         return result?.ToString() ?? string.Empty;
     }
 
@@ -92,10 +101,10 @@ public class Migration(string migrationsPath)
     /// <param name="version">The version string of the migration applied.</param>
     private static async Task UpdateLastAppliedVersionAsync(DbConnection connection, string version)
     {
-        await using var cmd = connection.CreateCommand();
+        await using DbCommand cmd = connection.CreateCommand();
         cmd.CommandText = "INSERT INTO sa_migrations (version) VALUES (@Version);";
 
-        var param = cmd.CreateParameter();
+        DbParameter param = cmd.CreateParameter();
         param.ParameterName = "@Version";
         param.Value = version;
         cmd.Parameters.Add(param);

@@ -1,3 +1,4 @@
+using System.Data.Common;
 using System.Globalization;
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
@@ -37,20 +38,30 @@ internal class PlayerManager
             return;
         }
 
-        var userId = player.UserId.Value;
-        var slot = player.Slot;
-        var steamId = player.SteamID;
-        var playerName = !string.IsNullOrEmpty(player.PlayerName)
-            ? player.PlayerName
-            : CS2_SimpleAdmin._localizer?["sa_unknown"] ?? "Unknown";
-        var ipAddress = player.IpAddress?.Split(":")[0];
+        int userId = player.UserId.Value;
+        int slot = player.Slot;
+        ulong steamId = player.SteamID;
+        string playerName;
 
-        if (CS2_SimpleAdmin.RenamedPlayers.TryGetValue(steamId, out var renamedTo))
+        if (!string.IsNullOrEmpty(player.PlayerName))
+        {
+            playerName = player.PlayerName;
+        }
+        else
+        {
+            playerName = CS2_SimpleAdmin._localizer?["sa_unknown"] ?? "Unknown";
+        }
+        string? ipAddress = player.IpAddress?.Split(":")[0];
+
+        if (CS2_SimpleAdmin.RenamedPlayers.TryGetValue(steamId, out string? renamedTo))
         {
             player.Rename(renamedTo);
         }
 
-        if (CS2_SimpleAdmin.DatabaseProvider == null || CS2_SimpleAdmin.Instance.CacheManager == null) return;
+        if (CS2_SimpleAdmin.DatabaseProvider == null || CS2_SimpleAdmin.Instance.CacheManager == null)
+        {
+            return;
+        }
 
         Task.Run(async () =>
         {
@@ -62,14 +73,8 @@ internal class PlayerManager
                 await SavePlayerIpAddress(steamId, playerName, ipAddress);
 
                 // Always check bans first, regardless of PlayersInfo state
-                var isBanned = CS2_SimpleAdmin.Instance.Config.OtherSettings.BanType switch
-                {
-                    0 => CS2_SimpleAdmin.Instance.CacheManager.IsPlayerBanned(playerName, steamId, null),
-                    _ => CS2_SimpleAdmin.Instance.Config.OtherSettings.CheckMultiAccountsByIp
-                        ? CS2_SimpleAdmin.Instance.CacheManager.IsPlayerOrAnyIpBanned(playerName, steamId,
-                            ipAddress)
-                        : CS2_SimpleAdmin.Instance.CacheManager.IsPlayerBanned(playerName, steamId, ipAddress)
-                };
+                bool isBanned = IsBanned(CS2_SimpleAdmin.Instance.CacheManager, CS2_SimpleAdmin.Instance.Config.OtherSettings.BanType,
+                    CS2_SimpleAdmin.Instance.Config.OtherSettings.CheckMultiAccountsByIp, playerName, steamId, ipAddress);
 
                 CS2_SimpleAdmin._logger?.LogInformation($"[BAN CHECK] Player {playerName} ({steamId}) IP: {ipAddress} - BanType: {CS2_SimpleAdmin.Instance.Config.OtherSettings.BanType} - CheckMultiAccounts: {CS2_SimpleAdmin.Instance.Config.OtherSettings.CheckMultiAccountsByIp} - isBanned: {isBanned}");
 
@@ -87,7 +92,7 @@ internal class PlayerManager
 
                 if (!CS2_SimpleAdmin.PlayersInfo.ContainsKey(steamId))
                 {
-                    var playerInfo = new PlayerInfo(userId, slot, new SteamID(steamId), playerName, ipAddress);
+                    PlayerInfo playerInfo = new PlayerInfo(userId, slot, new SteamID(steamId), playerName, ipAddress);
                     CS2_SimpleAdmin.PlayersInfo[steamId] = playerInfo;
 
                     if (_config.OtherSettings.CheckMultiAccountsByIp && ipAddress != null)
@@ -109,8 +114,8 @@ internal class PlayerManager
 
                         if (CS2_SimpleAdmin.PlayersInfo.TryGetValue(steamId, out PlayerInfo? value)) // Temp skip
                         {
-                            var warns = await CS2_SimpleAdmin.Instance.WarnManager.GetPlayerWarns(value, false);
-                            var (totalMutes, totalGags, totalSilences) =
+                            List<dynamic> warns = await CS2_SimpleAdmin.Instance.WarnManager.GetPlayerWarns(value, false);
+                            (int totalMutes, int totalGags, int totalSilences) =
                                 await CS2_SimpleAdmin.Instance.MuteManager.GetPlayerMutes(value);
                             value.TotalBans = CS2_SimpleAdmin.Instance.CacheManager
                                 ?.GetPlayerBansBySteamId(value.SteamId.SteamId64)
@@ -120,13 +125,13 @@ internal class PlayerManager
                             value.TotalSilences = totalSilences;
                             value.TotalWarns = warns.Count;
 
-                            var activeMutes =
+                            List<dynamic> activeMutes =
                                 await CS2_SimpleAdmin.Instance.MuteManager.IsPlayerMuted(value.SteamId.SteamId64
                                     .ToString());
 
                             if (activeMutes.Count > 0)
                             {
-                                foreach (var mute in activeMutes)
+                                foreach (dynamic mute in activeMutes)
                                 {
                                     string muteType = mute.type;
                                     DateTime ends = mute.ends;
@@ -171,7 +176,7 @@ internal class PlayerManager
                             {
                                 await Server.NextWorldUpdateAsync(() =>
                                 {
-                                    foreach (var admin in Helper.GetValidPlayers()
+                                    foreach (CCSPlayerController? admin in Helper.GetValidPlayers()
                                                  .Where(p => (AdminManager.PlayerHasPermissions(
                                                                   new SteamID(p.SteamID),
                                                                   "@css/kick") ||
@@ -182,7 +187,11 @@ internal class PlayerManager
                                                              !CS2_SimpleAdmin.AdminDisabledJoinComms
                                                                  .Contains(p.SteamID)))
                                     {
-                                        if (CS2_SimpleAdmin._localizer == null || admin == player) continue;
+                                        if (CS2_SimpleAdmin._localizer == null || admin == player)
+                                        {
+                                            continue;
+                                        }
+
                                         admin.SendLocalizedMessage(CS2_SimpleAdmin._localizer,
                                             "sa_admin_penalty_info",
                                             player.PlayerName,
@@ -195,10 +204,10 @@ internal class PlayerManager
 
                                         if (CS2_SimpleAdmin.PlayersInfo[steamId].AccountsAssociated.Count >= 2)
                                         {
-                                            var associatedAcccountsChunks =
+                                            List<IEnumerable<(ulong SteamId, string PlayerName)>> associatedAcccountsChunks =
                                                 CS2_SimpleAdmin.PlayersInfo[steamId].AccountsAssociated.ChunkBy(5)
                                                     .ToList();
-                                            foreach (var chunk in associatedAcccountsChunks)
+                                            foreach (IEnumerable<(ulong SteamId, string PlayerName)> chunk in associatedAcccountsChunks)
                                             {
                                                 admin.SendLocalizedMessage(CS2_SimpleAdmin._localizer,
                                                     "sa_admin_associated_accounts",
@@ -235,17 +244,22 @@ internal class PlayerManager
     /// <param name="type">Optional filter: bans, gags, mutes, silences or warns.</param>
     public async Task<List<dynamic>> GetPenaltyHistory(ulong steamId, string? type = null)
     {
-        if (CS2_SimpleAdmin.DatabaseProvider == null) return [];
+        if (CS2_SimpleAdmin.DatabaseProvider == null)
+        {
+            return [];
+        }
 
         try
         {
-            await using var connection = await CS2_SimpleAdmin.DatabaseProvider.CreateConnectionAsync();
-            var sql = CS2_SimpleAdmin.DatabaseProvider.GetPenaltyHistoryQuery(CS2_SimpleAdmin.Instance.Config.MultiServerMode);
-            var rows = (await connection.QueryAsync(sql, new { PlayerSteamID = steamId, serverid = CS2_SimpleAdmin.ServerId })).ToList();
+            await using DbConnection connection = await CS2_SimpleAdmin.DatabaseProvider.CreateConnectionAsync();
+            string sql = CS2_SimpleAdmin.DatabaseProvider.GetPenaltyHistoryQuery(CS2_SimpleAdmin.Instance.Config.MultiServerMode);
+            List<dynamic> rows = (await connection.QueryAsync(sql, new { PlayerSteamID = steamId, serverid = CS2_SimpleAdmin.ServerId })).ToList();
 
             // Filter word is the plural (bans, gags, mutes, silences, warns); rows carry BAN/GAG/MUTE/SILENCE/WARN
             if (type != null)
+            {
                 rows.RemoveAll(r => !type.Equals((string)r.type + "s", StringComparison.OrdinalIgnoreCase));
+            }
 
             return rows;
         }
@@ -263,7 +277,7 @@ internal class PlayerManager
         value switch
         {
             DateTime d => d,
-            string s when DateTime.TryParse(s, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed) => parsed,
+            string s when DateTime.TryParse(s, CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime parsed) => parsed,
             _ => null
         };
 
@@ -272,17 +286,22 @@ internal class PlayerManager
     /// </summary>
     public async Task LoadRenamedPlayers()
     {
-        if (CS2_SimpleAdmin.DatabaseProvider == null) return;
+        if (CS2_SimpleAdmin.DatabaseProvider == null)
+        {
+            return;
+        }
 
         try
         {
-            await using var connection = await CS2_SimpleAdmin.DatabaseProvider.CreateConnectionAsync();
-            var rows = await connection.QueryAsync<(long steamId, string name)>(CS2_SimpleAdmin.DatabaseProvider.GetRenamesQuery());
+            await using DbConnection connection = await CS2_SimpleAdmin.DatabaseProvider.CreateConnectionAsync();
+            IEnumerable<(long steamId, string name)> rows = await connection.QueryAsync<(long steamId, string name)>(CS2_SimpleAdmin.DatabaseProvider.GetRenamesQuery());
 
             await Server.NextWorldUpdateAsync(() =>
             {
-                foreach (var (steamId, name) in rows)
+                foreach ((long steamId, string? name) in rows)
+                {
                     CS2_SimpleAdmin.RenamedPlayers[(ulong)steamId] = name;
+                }
             });
         }
         catch (Exception ex)
@@ -298,15 +317,22 @@ internal class PlayerManager
     /// <param name="name">Forced name, or null/empty to remove the rename.</param>
     public async Task SaveRenamedPlayer(ulong steamId, string? name)
     {
-        if (CS2_SimpleAdmin.DatabaseProvider == null) return;
+        if (CS2_SimpleAdmin.DatabaseProvider == null)
+        {
+            return;
+        }
 
         try
         {
-            await using var connection = await CS2_SimpleAdmin.DatabaseProvider.CreateConnectionAsync();
+            await using DbConnection connection = await CS2_SimpleAdmin.DatabaseProvider.CreateConnectionAsync();
             if (string.IsNullOrEmpty(name))
+            {
                 await connection.ExecuteAsync(CS2_SimpleAdmin.DatabaseProvider.GetDeleteRenameQuery(), new { steamId });
+            }
             else
+            {
                 await connection.ExecuteAsync(CS2_SimpleAdmin.DatabaseProvider.GetUpsertRenameQuery(), new { steamId, name });
+            }
         }
         catch (Exception ex)
         {
@@ -321,16 +347,18 @@ internal class PlayerManager
     private async Task SavePlayerIpAddress(ulong steamId, string playerName, string? ipAddress)
     {
         if (!_config.OtherSettings.CheckMultiAccountsByIp || ipAddress == null || CS2_SimpleAdmin.DatabaseProvider == null)
+        {
             return;
+        }
 
         try
         {
-            await using var connection = await CS2_SimpleAdmin.DatabaseProvider.CreateConnectionAsync();
+            await using DbConnection connection = await CS2_SimpleAdmin.DatabaseProvider.CreateConnectionAsync();
 
-            var steamId64 = steamId;
-            var ipUint = IpHelper.IpToUint(ipAddress);
+            ulong steamId64 = steamId;
+            uint ipUint = IpHelper.IpToUint(ipAddress);
 
-            var upsertQuery = CS2_SimpleAdmin.DatabaseProvider.GetUpsertPlayerIpQuery();
+            string upsertQuery = CS2_SimpleAdmin.DatabaseProvider.GetUpsertPlayerIpQuery();
 
             await connection.ExecuteAsync(upsertQuery, new
             {
@@ -365,40 +393,46 @@ internal class PlayerManager
     {
         CS2_SimpleAdmin.Instance.AddTimer(5f, () =>
         {
-            foreach (var (steamid, name) in CS2_SimpleAdmin.RenamedPlayers)
+            foreach ((ulong steamid, string? name) in CS2_SimpleAdmin.RenamedPlayers)
             {
-                var player = Helper.GetPlayerFromSteamid64(steamid);
-                if (player == null || !player.IsValid || player.PlayerName == name) continue;
+                CCSPlayerController? player = Helper.GetPlayerFromSteamid64(steamid);
+                if (player == null || !player.IsValid || player.PlayerName == name)
+                {
+                    continue;
+                }
+
                 player.Rename(name);
             }
         }, TimerFlags.REPEAT);
-        
+
         CS2_SimpleAdmin.Instance.PlayersTimer = CS2_SimpleAdmin.Instance.AddTimer(61.0f, () =>
         {
 #if DEBUG
             CS2_SimpleAdmin._logger?.LogCritical("[OnMapStart] Expired check");
 #endif
             if (CS2_SimpleAdmin.DatabaseProvider == null)
+            {
                 return;
-            
+            }
+
             // Optimization: Get players once and avoid allocating anonymous types
-            var validPlayers = Helper.GetValidPlayers();
+            List<CCSPlayerController> validPlayers = Helper.GetValidPlayers();
             // Use ValueTuple instead of anonymous type - better performance and less allocations
-            var tempPlayers = new List<(string PlayerName, ulong SteamID, string? IpAddress, int? UserId, int Slot)>(validPlayers.Count);
-            foreach (var p in validPlayers)
+            List<(string PlayerName, ulong SteamID, string? IpAddress, int? UserId, int Slot)> tempPlayers = new List<(string PlayerName, ulong SteamID, string? IpAddress, int? UserId, int Slot)>(validPlayers.Count);
+            foreach (CCSPlayerController p in validPlayers)
             {
                 tempPlayers.Add((p.PlayerName, p.SteamID, p.IpAddress, p.UserId, p.Slot));
             }
 
-            var pluginInstance = CS2_SimpleAdmin.Instance;
-            var config = _config.OtherSettings; // Cache config access
+            CS2_SimpleAdmin pluginInstance = CS2_SimpleAdmin.Instance;
+            OtherSettings config = _config.OtherSettings; // Cache config access
 
             _ = Task.Run(async () =>
             {
                 try
                 {
                     // Run all expire tasks in parallel
-                    var expireTasks = new[]
+                    Task[] expireTasks = new[]
                     {
                         pluginInstance.BanManager.ExpireOldBans(),
                         pluginInstance.MuteManager.ExpireOldMutes(),
@@ -415,7 +449,7 @@ internal class PlayerManager
 
                     if (ex is AggregateException aggregate)
                     {
-                        foreach (var inner in aggregate.InnerExceptions)
+                        foreach (Exception inner in aggregate.InnerExceptions)
                         {
                             CS2_SimpleAdmin._logger?.LogError($"Inner exception: {inner.Message}");
                         }
@@ -423,28 +457,24 @@ internal class PlayerManager
                 }
 
                 if (pluginInstance.CacheManager == null)
+                {
                     return;
+                }
 
                 // Optimization: Cache ban type and multi-account check to avoid repeated config access
-                var banType = config.BanType;
-                var checkMultiAccounts = config.CheckMultiAccountsByIp;
+                int banType = config.BanType;
+                bool checkMultiAccounts = config.CheckMultiAccountsByIp;
 
-                var bannedPlayers = new List<(string PlayerName, ulong SteamID, string? IpAddress, int? UserId, int Slot)>();
+                List<(string PlayerName, ulong SteamID, string? IpAddress, int? UserId, int Slot)> bannedPlayers = new List<(string PlayerName, ulong SteamID, string? IpAddress, int? UserId, int Slot)>();
 
                 // Manual loop instead of LINQ - better performance
-                foreach (var player in tempPlayers)
+                foreach ((string PlayerName, ulong SteamID, string? IpAddress, int? UserId, int Slot) player in tempPlayers)
                 {
-                    var playerName = player.PlayerName;
-                    var steamId = player.SteamID;
-                    var ip = player.IpAddress?.Split(':')[0];
+                    string playerName = player.PlayerName;
+                    ulong steamId = player.SteamID;
+                    string? ip = player.IpAddress?.Split(':')[0];
 
-                    bool isBanned = banType switch
-                    {
-                        0 => pluginInstance.CacheManager.IsPlayerBanned(playerName, steamId, null),
-                        _ => checkMultiAccounts
-                            ? pluginInstance.CacheManager.IsPlayerOrAnyIpBanned(playerName, steamId, ip)
-                            : pluginInstance.CacheManager.IsPlayerBanned(playerName, steamId, ip)
-                    };
+                    bool isBanned = IsBanned(pluginInstance.CacheManager, banType, checkMultiAccounts, playerName, steamId, ip);
 
                     if (isBanned)
                     {
@@ -454,23 +484,29 @@ internal class PlayerManager
 
                 if (bannedPlayers.Count > 0)
                 {
-                    foreach (var player in bannedPlayers)
+                    foreach ((string PlayerName, ulong SteamID, string? IpAddress, int? UserId, int Slot) player in bannedPlayers)
                     {
-                        if (!player.UserId.HasValue) continue;
+                        if (!player.UserId.HasValue)
+                        {
+                            continue;
+                        }
+
                         await Server.NextWorldUpdateAsync(() =>
                         {
                             if (Helper.GetPlayerFromSteamid64(player.SteamID) != null)
+                            {
                                 Helper.KickPlayer((int)player.UserId,
                                     NetworkDisconnectionReason.NETWORK_DISCONNECT_REJECT_BANNED);
+                            }
                         });
                     }
                 }
-                
+
                 if (config.TimeMode == 0)
                 {
                     // Optimization: Manual projection instead of LINQ
-                    var onlinePlayers = new List<(ulong, int?, int)>(tempPlayers.Count);
-                    foreach (var player in tempPlayers)
+                    List<(ulong, int?, int)> onlinePlayers = new List<(ulong, int?, int)>(tempPlayers.Count);
+                    foreach ((string PlayerName, ulong SteamID, string? IpAddress, int? UserId, int Slot) player in tempPlayers)
                     {
                         onlinePlayers.Add((player.SteamID, player.UserId, player.Slot));
                     }
@@ -485,14 +521,16 @@ internal class PlayerManager
             try
             {
                 // Optimization: Process penalties without LINQ allocations
-                var players = Helper.GetValidPlayers();
-                foreach (var player in players)
+                List<CCSPlayerController> players = Helper.GetValidPlayers();
+                foreach (CCSPlayerController player in players)
                 {
                     if (!PlayerPenaltyManager.IsSlotInPenalties(player.Slot))
+                    {
                         continue;
+                    }
 
-                    var isMuted = PlayerPenaltyManager.IsPenalized(player.Slot, PenaltyType.Mute, out _);
-                    var isSilenced = PlayerPenaltyManager.IsPenalized(player.Slot, PenaltyType.Silence, out _);
+                    bool isMuted = PlayerPenaltyManager.IsPenalized(player.Slot, PenaltyType.Mute, out _);
+                    bool isSilenced = PlayerPenaltyManager.IsPenalized(player.Slot, PenaltyType.Silence, out _);
 
                     // Only reset voice flags if not muted or silenced
                     if (!isMuted && !isSilenced)
@@ -508,5 +546,23 @@ internal class PlayerManager
                 CS2_SimpleAdmin._logger?.LogError($"Unable to remove old penalties: {ex.Message}");
             }
         }, TimerFlags.REPEAT);
+    }
+
+    /// <summary>
+    /// BanType 0 checks the SteamID only; otherwise the IP too, and every IP the player used when multi-account checks are on.
+    /// </summary>
+    private static bool IsBanned(CacheManager cacheManager, int banType, bool checkMultiAccounts, string playerName, ulong steamId, string? ipAddress)
+    {
+        if (banType == 0)
+        {
+            return cacheManager.IsPlayerBanned(playerName, steamId, null);
+        }
+
+        if (checkMultiAccounts)
+        {
+            return cacheManager.IsPlayerOrAnyIpBanned(playerName, steamId, ipAddress);
+        }
+
+        return cacheManager.IsPlayerBanned(playerName, steamId, ipAddress);
     }
 }

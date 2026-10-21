@@ -7,7 +7,7 @@ public interface IDatabaseProvider
     Task<DbConnection> CreateConnectionAsync();
     Task<(bool Success, string? Exception)> CheckConnectionAsync();
     Task DatabaseMigrationAsync();
-    
+
     // CacheManager
     string GetBanSelectQuery(bool multiServer);
     string GetIpHistoryQuery();
@@ -15,7 +15,7 @@ public interface IDatabaseProvider
 
     // PlayerManager
     string GetUpsertPlayerIpQuery();
-    
+
     // PermissionManager
     string GetAdminsQuery();
     string GetDeleteAdminQuery(bool globalDelete);
@@ -29,7 +29,7 @@ public interface IDatabaseProvider
     string GetAddGroupServerQuery();
     string GetDeleteGroupQuery();
     string GetDeleteOldAdminsQuery();
-    
+
     // BanManager
     string GetAddBanQuery();
     string GetAddBanBySteamIdQuery();
@@ -58,7 +58,7 @@ public interface IDatabaseProvider
     string GetInsertUnmuteQuery(bool includeReason);
     string GetUpdateMuteStatusQuery();
     string GetExpireMutesQuery(bool multiServer, int timeMode);
-    
+
     // WarnManager
     string GetAddWarnQuery(bool includePlayerName);
     string GetPlayerWarnsQuery(bool multiServer, bool active);

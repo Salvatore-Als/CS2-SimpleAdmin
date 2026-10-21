@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace CS2_SimpleAdmin.Models;
 
-public enum BanStatus 
+public enum BanStatus
 {
     [Description("ACTIVE")] ACTIVE,
     [Description("UNBANNED")] UNBANNED,
@@ -15,13 +15,13 @@ public record BanRecord
 {
     [Column("id")]
     public int Id { get; init; }
-    
+
     [Column("player_name")]
     public string? PlayerName { get; set; }
-    
+
     [Column("player_steamid")]
     public ulong? PlayerSteamId { get; set; }
-    
+
     [Column("player_ip")]
     public string? PlayerIp { get; set; }
 

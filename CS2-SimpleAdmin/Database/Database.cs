@@ -9,13 +9,13 @@ public class Database(string dbConnectionString)
     {
         try
         {
-            var connection = new MySqlConnection(dbConnectionString);
+            MySqlConnection connection = new MySqlConnection(dbConnectionString);
             connection.Open();
-            
+
             // using var cmd = connection.CreateCommand();
             // cmd.CommandText = "SET NAMES 'utf8mb4' COLLATE 'utf8mb4_general_ci';";
             // cmd.ExecuteNonQueryAsync();
-            
+
             return connection;
         }
         catch (Exception ex)
@@ -29,13 +29,13 @@ public class Database(string dbConnectionString)
     {
         try
         {
-            var connection = new MySqlConnection(dbConnectionString);
+            MySqlConnection connection = new MySqlConnection(dbConnectionString);
             await connection.OpenAsync();
 
             // await using var cmd = connection.CreateCommand();
             // cmd.CommandText = "SET NAMES 'utf8mb4' COLLATE 'utf8mb4_general_ci';";
             // await cmd.ExecuteNonQueryAsync();
-            
+
             return connection;
         }
         catch (Exception ex)
@@ -53,9 +53,9 @@ public class Database(string dbConnectionString)
 
     public bool CheckDatabaseConnection(out string? exception)
     {
-        using var connection = GetConnection();
+        using MySqlConnection connection = GetConnection();
         exception = null;
-        
+
         try
         {
             return connection.Ping();

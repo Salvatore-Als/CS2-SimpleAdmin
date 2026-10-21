@@ -2,6 +2,7 @@ using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Translations;
 using CounterStrikeSharp.API.Modules.Admin;
 using CounterStrikeSharp.API.Modules.Entities;
+using Microsoft.Extensions.Localization;
 
 namespace CS2_SimpleAdmin.Menus;
 
@@ -125,7 +126,11 @@ public class MenuManager
     /// <param name="menuId">The menu to unregister.</param>
     public void UnregisterMenu(string categoryId, string menuId)
     {
-        if (!_menuCategories.TryGetValue(categoryId, out var category)) return;
+        if (!_menuCategories.TryGetValue(categoryId, out MenuCategory? category))
+        {
+            return;
+        }
+
         category.MenuFactories.Remove(menuId);
         _menuCategories[categoryId].MenuNames.Remove(menuId);
         _menuCategories[categoryId].MenuPermissions.Remove(menuId);
@@ -139,16 +144,21 @@ public class MenuManager
     /// <returns>A MenuBuilder instance for the main menu.</returns>
     public MenuBuilder CreateMainMenu(CCSPlayerController player)
     {
-        var localizer = CS2_SimpleAdmin._localizer;
-        var mainMenu = new MenuBuilder("sa_title", player, localizer);
+        IStringLocalizer? localizer = CS2_SimpleAdmin._localizer;
+        MenuBuilder mainMenu = new MenuBuilder("sa_title", player, localizer);
 
-        foreach (var category in _menuCategories.Values)
+        foreach (MenuCategory category in _menuCategories.Values)
         {
-            if (category.MenuFactories.Count <= 0) continue;
-            // Check category permissions
-            var steamId = new SteamID(player.SteamID);
-            if (!AdminManager.PlayerHasPermissions(steamId, category.Permission))
+            if (category.MenuFactories.Count <= 0)
+            {
                 continue;
+            }
+            // Check category permissions
+            SteamID steamId = new SteamID(player.SteamID);
+            if (!AdminManager.PlayerHasPermissions(steamId, category.Permission))
+            {
+                continue;
+            }
 
             // Get localized category name for this player
             // If category has a module localizer, use it; otherwise use main plugin localizer
@@ -181,7 +191,7 @@ public class MenuManager
     /// <returns>A MenuBuilder instance for the category menu.</returns>
     private MenuBuilder CreateCategoryMenu(MenuCategory category, CCSPlayerController player)
     {
-        var localizer = CS2_SimpleAdmin._localizer;
+        IStringLocalizer? localizer = CS2_SimpleAdmin._localizer;
 
         // Get localized category name for this player
         // If category has a module localizer, use it; otherwise use main plugin localizer
@@ -198,18 +208,22 @@ public class MenuManager
             }
         }
 
-        var categoryMenu = new MenuBuilder(localizedCategoryName);
+        MenuBuilder categoryMenu = new MenuBuilder(localizedCategoryName);
 
-        foreach (var kvp in category.MenuFactories)
+        foreach (KeyValuePair<string, Func<CCSPlayerController, MenuBuilder>> kvp in category.MenuFactories)
         {
-            var menuId = kvp.Key;
-            var menuFactory = kvp.Value;
-            var menuName = category.MenuNames.TryGetValue(menuId, out var name) ? name : menuId;
-            var permission = category.MenuPermissions.TryGetValue(menuId, out var perm) ? perm : null;
-            var commandName = category.MenuCommandNames.TryGetValue(menuId, out var cmd) ? cmd : null;
+            string menuId = kvp.Key;
+            Func<CCSPlayerController, MenuBuilder> menuFactory = kvp.Value;
+            if (!category.MenuNames.TryGetValue(menuId, out string? menuName))
+            {
+                menuName = menuId;
+            }
+
+            category.MenuPermissions.TryGetValue(menuId, out string? permission);
+            category.MenuCommandNames.TryGetValue(menuId, out string? commandName);
 
             // Check permissions with command override support
-            var steamId = new SteamID(player.SteamID);
+            SteamID steamId = new SteamID(player.SteamID);
 
             // If commandName is provided, check for permission overrides
             if (!string.IsNullOrEmpty(commandName))
@@ -219,7 +233,7 @@ public class MenuManager
                 // Check if command has overridden permissions
                 if (AdminManager.CommandIsOverriden(commandName))
                 {
-                    var overriddenPermission = AdminManager.GetPermissionOverrides(commandName);
+                    string[] overriddenPermission = AdminManager.GetPermissionOverrides(commandName);
                     hasPermission = AdminManager.PlayerHasPermissions(steamId, overriddenPermission);
                 }
                 else if (!string.IsNullOrEmpty(permission))
@@ -234,13 +248,17 @@ public class MenuManager
                 }
 
                 if (!hasPermission)
+                {
                     continue;
+                }
             }
             // Fallback to standard permission check if no commandName provided
             else if (!string.IsNullOrEmpty(permission))
             {
                 if (!AdminManager.PlayerHasPermissions(steamId, permission))
+                {
                     continue;
+                }
             }
 
             // Get localized menu name for this player
@@ -248,7 +266,7 @@ public class MenuManager
             string localizedMenuName;
             using (new WithTemporaryCulture(player.GetLanguage()))
             {
-                if (category.MenuLocalizers.TryGetValue(menuId, out var menuLocalizer))
+                if (category.MenuLocalizers.TryGetValue(menuId, out IStringLocalizer? menuLocalizer))
                 {
                     // Menu has its own module localizer
                     localizedMenuName = menuLocalizer[menuName] ?? menuName;
@@ -278,9 +296,9 @@ public class MenuManager
     /// <param name="player">The player to open the menu for.</param>
     public void OpenMainMenu(CCSPlayerController player)
     {
-        var localizer = CS2_SimpleAdmin._localizer;
-    
-        var steamId = new SteamID(player.SteamID);
+        IStringLocalizer? localizer = CS2_SimpleAdmin._localizer;
+
+        SteamID steamId = new SteamID(player.SteamID);
         if (!AdminManager.PlayerHasPermissions(steamId, "@css/generic"))
         {
             player.PrintToChat(localizer?["sa_prefix"] ?? "[SimpleAdmin] " +
@@ -302,17 +320,6 @@ public class MenuManager
         RegisterCategory("server", "sa_menu_server_manage", "@css/generic");
         // RegisterCategory("fun", "sa_menu_fun_commands", "@css/generic");
         RegisterCategory("admin", "sa_menu_admins_manage", "@css/root");
-    }
-
-    /// <summary>
-    /// Public method for creating category menus (for API usage).
-    /// </summary>
-    /// <param name="category">The menu category to create.</param>
-    /// <param name="player">The player to create the menu for.</param>
-    /// <returns>A MenuBuilder instance for the category menu.</returns>
-    public MenuBuilder CreateCategoryMenuPublic(MenuCategory category, CCSPlayerController player)
-    {
-        return CreateCategoryMenu(category, player);
     }
 }
 

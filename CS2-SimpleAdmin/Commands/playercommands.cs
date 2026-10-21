@@ -1,10 +1,9 @@
-using System.Globalization;
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Admin;
 using CounterStrikeSharp.API.Modules.Commands;
+using CounterStrikeSharp.API.Modules.Commands.Targeting;
 using CounterStrikeSharp.API.Modules.Entities.Constants;
-using CounterStrikeSharp.API.Modules.Memory;
 using CounterStrikeSharp.API.Modules.Utils;
 
 namespace CS2_SimpleAdmin;
@@ -21,17 +20,20 @@ public partial class CS2_SimpleAdmin
     [CommandHelper(minArgs: 1, usage: "<#userid or name>", whoCanExecute: CommandUsage.CLIENT_AND_SERVER)]
     public void OnSlayCommand(CCSPlayerController? caller, CommandInfo command)
     {
-        var callerName = caller == null ? _localizer?["sa_console"] ?? "Console" : caller.PlayerName;
-        var targets = GetTarget(command);
-        if (targets == null) return;
+        string callerName = Helper.GetCallerName(caller);
+        TargetResult? targets = GetTarget(command);
+        if (targets == null)
+        {
+            return;
+        }
 
-        var playersToTarget = targets.Players.Where(player => player.IsValid && player is {IsHLTV: false, PlayerPawn.Value.LifeState: (int)LifeState_t.LIFE_ALIVE }).ToList();
+        List<CCSPlayerController> playersToTarget = targets.Players.Where(player => player.IsValid && player is { IsHLTV: false, PlayerPawn.Value.LifeState: (int)LifeState_t.LIFE_ALIVE }).ToList();
 
         playersToTarget.ForEach(player =>
         {
             Slay(caller, player, callerName, command);
         });
-        
+
         Helper.LogCommand(caller, command);
     }
 
@@ -44,18 +46,25 @@ public partial class CS2_SimpleAdmin
     /// <param name="command">Optional command info for logging.</param>
     internal static void Slay(CCSPlayerController? caller, CCSPlayerController player, string? callerName = null, CommandInfo? command = null)
     {
-        if (!player.IsValid || player.Connected != PlayerConnectedState.Connected) return;
-        if (!caller.CanTarget(player)) return;
+        if (!player.IsValid || player.Connected != PlayerConnectedState.Connected)
+        {
+            return;
+        }
+
+        if (!caller.CanTarget(player))
+        {
+            return;
+        }
 
         // Set default caller name if not provided
-        callerName ??= caller != null ? caller.PlayerName : _localizer?["sa_console"] ?? "Console";
+        callerName ??= Helper.GetCallerName(caller);
 
         // Make the player commit suicide
         player.CommitSuicide(false, true);
         player.EmitSound("Player.Death");
 
         // Determine message keys and arguments for the slay notification
-        var (activityMessageKey, adminActivityArgs) =
+        (string? activityMessageKey, object[]? adminActivityArgs) =
             ("sa_admin_slay_message",
                 new object[] { "CALLER", player.PlayerName });
 
@@ -67,7 +76,9 @@ public partial class CS2_SimpleAdmin
 
         // Log the command and send Discord notification
         if (command == null)
-            Helper.LogCommand(caller, $"css_slay {(string.IsNullOrEmpty(player.PlayerName) ? player.SteamID.ToString() : player.PlayerName)}");
+        {
+            Helper.LogCommand(caller, $"css_slay {Helper.GetLogName(player)}");
+        }
     }
 
     /// <summary>
@@ -79,12 +90,15 @@ public partial class CS2_SimpleAdmin
     [CommandHelper(minArgs: 1, usage: "<#userid or name> [damage]", whoCanExecute: CommandUsage.CLIENT_AND_SERVER)]
     public void OnSlapCommand(CCSPlayerController? caller, CommandInfo command)
     {
-        var damage = 0;
+        int damage = 0;
 
-        var targets = GetTarget(command);
-        if (targets == null) return;
+        TargetResult? targets = GetTarget(command);
+        if (targets == null)
+        {
+            return;
+        }
 
-        var playersToTarget = targets.Players.Where(player => player.IsValid && player is { IsHLTV: false, PlayerPawn.Value.LifeState: (int)LifeState_t.LIFE_ALIVE }).ToList();
+        List<CCSPlayerController> playersToTarget = targets.Players.Where(player => player.IsValid && player is { IsHLTV: false, PlayerPawn.Value.LifeState: (int)LifeState_t.LIFE_ALIVE }).ToList();
 
         if (command.ArgCount >= 2)
         {
@@ -94,14 +108,16 @@ public partial class CS2_SimpleAdmin
         playersToTarget.ForEach(player =>
         {
             if (player.Connected != PlayerConnectedState.Connected)
+            {
                 return;
+            }
 
             if (caller!.CanTarget(player))
             {
                 Slap(caller, player, damage, command);
             }
         });
-        
+
         Helper.LogCommand(caller, command);
     }
 
@@ -114,26 +130,34 @@ public partial class CS2_SimpleAdmin
     /// <param name="command">Optional command info for logging.</param>
     internal static void Slap(CCSPlayerController? caller, CCSPlayerController player, int damage, CommandInfo? command = null)
     {
-        if (!caller.CanTarget(player)) return;
+        if (!caller.CanTarget(player))
+        {
+            return;
+        }
 
         // Set default caller name if not provided
-        var callerName = caller != null ? caller.PlayerName : _localizer?["sa_console"] ?? "Console";
-        
+        string callerName = Helper.GetCallerName(caller);
+
         // Apply slap damage to the player
         player.Pawn.Value?.Slap(damage);
         player.EmitSound("Player.DamageFall");
 
         // Log the command
         if (command == null)
-            Helper.LogCommand(caller, $"css_slap {(string.IsNullOrEmpty(player.PlayerName) ? player.SteamID.ToString() : player.PlayerName)} {damage}");
-        
+        {
+            Helper.LogCommand(caller, $"css_slap {Helper.GetLogName(player)} {damage}");
+        }
+
         // Determine message key and arguments for the slap notification
-        var (activityMessageKey, adminActivityArgs) =
+        (string? activityMessageKey, object[]? adminActivityArgs) =
             ("sa_admin_slap_message",
                 new object[] { "CALLER", player.PlayerName });
 
         // Display admin activity message to other players
-        if (caller != null && SilentPlayers.Contains(caller.Slot)) return;
+        if (caller != null && SilentPlayers.Contains(caller.Slot))
+        {
+            return;
+        }
 
         if (_localizer != null)
         {
@@ -150,15 +174,18 @@ public partial class CS2_SimpleAdmin
     [CommandHelper(minArgs: 2, usage: "<#userid or name> [<ct/tt/spec>] [-k]", whoCanExecute: CommandUsage.CLIENT_AND_SERVER)]
     public void OnTeamCommand(CCSPlayerController? caller, CommandInfo command)
     {
-        var callerName = caller == null ? _localizer?["sa_console"] ?? "Console" : caller.PlayerName;
-        var teamName = command.GetArg(2).ToLower();
+        string callerName = Helper.GetCallerName(caller);
+        string teamName = command.GetArg(2).ToLower();
         string _teamName;
-        var teamNum = CsTeam.Spectator;
+        CsTeam teamNum = CsTeam.Spectator;
 
-        var targets = GetTarget(command);
-        if (targets == null) return;
+        TargetResult? targets = GetTarget(command);
+        if (targets == null)
+        {
+            return;
+        }
 
-        var playersToTarget = targets.Players.Where(player => player is { IsValid: true, IsHLTV: false }).ToList();
+        List<CCSPlayerController> playersToTarget = targets.Players.Where(player => player is { IsValid: true, IsHLTV: false }).ToList();
 
         switch (teamName)
         {
@@ -185,13 +212,13 @@ public partial class CS2_SimpleAdmin
                 break;
         }
 
-        var kill = command.GetArg(3).ToLower().Equals("-k");
+        bool kill = command.GetArg(3).ToLower().Equals("-k");
 
         playersToTarget.ForEach(player =>
         {
             ChangeTeam(caller, player, _teamName, teamNum, kill, command);
         });
-        
+
         Helper.LogCommand(caller, command);
     }
 
@@ -208,45 +235,79 @@ public partial class CS2_SimpleAdmin
     {
         // Check if the player is valid and connected
         if (!player.IsValid || player.Connected != PlayerConnectedState.Connected)
+        {
             return;
+        }
 
         // Ensure the caller can target the player
-        if (!caller.CanTarget(player)) return;
+        if (!caller.CanTarget(player))
+        {
+            return;
+        }
 
         // Set default caller name if not provided
-        var callerName = caller != null ? caller.PlayerName : _localizer?["sa_console"] ?? "Console";
+        string callerName = Helper.GetCallerName(caller);
 
         // Change team based on the provided teamName and conditions
         if (!teamName.Equals("swap", StringComparison.OrdinalIgnoreCase))
         {
             if (player.PlayerPawn?.Value?.LifeState == (int)LifeState_t.LIFE_ALIVE && teamNum != CsTeam.Spectator && !kill && Instance.Config.OtherSettings.TeamSwitchType == 1)
+            {
                 player.SwitchTeam(teamNum);
+            }
             else
+            {
                 player.ChangeTeam(teamNum);
+            }
         }
         else
         {
             if (player.TeamNum != (byte)CsTeam.Spectator)
             {
-                var _teamNum = (CsTeam)player.TeamNum == CsTeam.Terrorist ? CsTeam.CounterTerrorist : CsTeam.Terrorist;
-                teamName = _teamNum == CsTeam.Terrorist ? "TT" : "CT";
-                if (player.PlayerPawn?.Value?.LifeState == (int)LifeState_t.LIFE_ALIVE && !kill && Instance.Config.OtherSettings.TeamSwitchType == 1)
-                    player.SwitchTeam(_teamNum);
+                CsTeam _teamNum;
+
+                if ((CsTeam)player.TeamNum == CsTeam.Terrorist)
+                {
+                    _teamNum = CsTeam.CounterTerrorist;
+                }
                 else
+                {
+                    _teamNum = CsTeam.Terrorist;
+                }
+                if (_teamNum == CsTeam.Terrorist)
+                {
+                    teamName = "TT";
+                }
+                else
+                {
+                    teamName = "CT";
+                }
+                if (player.PlayerPawn?.Value?.LifeState == (int)LifeState_t.LIFE_ALIVE && !kill && Instance.Config.OtherSettings.TeamSwitchType == 1)
+                {
+                    player.SwitchTeam(_teamNum);
+                }
+                else
+                {
                     player.ChangeTeam(_teamNum);
+                }
             }
         }
 
         // Log the command
         if (command == null)
+        {
             Helper.LogCommand(caller, $"css_team {player.PlayerName} {teamName}");
+        }
 
         // Determine message key and arguments for the team change notification
-        var activityMessageKey = "sa_admin_team_message";
-        var adminActivityArgs = new object[] { "CALLER", player.PlayerName, teamName };
+        string activityMessageKey = "sa_admin_team_message";
+        object[] adminActivityArgs = new object[] { "CALLER", player.PlayerName, teamName };
 
         // Display admin activity message to other players
-        if (caller != null && SilentPlayers.Contains(caller.Slot)) return;
+        if (caller != null && SilentPlayers.Contains(caller.Slot))
+        {
+            return;
+        }
 
         Helper.ShowAdminActivity(activityMessageKey, callerName, false, adminActivityArgs);
     }
@@ -261,21 +322,26 @@ public partial class CS2_SimpleAdmin
     public void OnRenameCommand(CCSPlayerController? caller, CommandInfo command)
     {
         // Set default caller name if not provided
-        var callerName = caller == null ? _localizer?["sa_console"] ?? "Console" : caller.PlayerName;
+        string callerName = Helper.GetCallerName(caller);
 
         // Get the new name from the command arguments
-        var newName = command.GetArg(2);
+        string newName = command.GetArg(2);
 
         // Check if the new name is valid
         if (string.IsNullOrEmpty(newName))
+        {
             return;
+        }
 
         // Retrieve the targets based on the command
-        var targets = GetTarget(command);
-        if (targets == null) return;
+        TargetResult? targets = GetTarget(command);
+        if (targets == null)
+        {
+            return;
+        }
 
         // Filter out valid players from the targets
-        var playersToTarget = targets.Players.Where(player => player is { IsValid: true, IsHLTV: false }).ToList();
+        List<CCSPlayerController> playersToTarget = targets.Players.Where(player => player is { IsValid: true, IsHLTV: false }).ToList();
 
         // Log the command
         Helper.LogCommand(caller, command);
@@ -285,15 +351,19 @@ public partial class CS2_SimpleAdmin
         {
             // Check if the player is connected and can be targeted
             if (player.Connected != PlayerConnectedState.Connected || !caller!.CanTarget(player))
+            {
                 return;
-            
+            }
+
             // Determine message key and arguments for the rename notification
-            var activityMessageKey = "sa_admin_rename_message";
-            var adminActivityArgs = new object[] { "CALLER", player.PlayerName, newName };
+            string activityMessageKey = "sa_admin_rename_message";
+            object[] adminActivityArgs = new object[] { "CALLER", player.PlayerName, newName };
 
             // Display admin activity message to other players
             if (caller != null && !SilentPlayers.Contains(caller.Slot))
+            {
                 Helper.ShowAdminActivity(activityMessageKey, callerName, false, adminActivityArgs);
+            }
 
             // Rename the player
             player.Rename(newName);
@@ -310,17 +380,20 @@ public partial class CS2_SimpleAdmin
     public void OnPrenameCommand(CCSPlayerController? caller, CommandInfo command)
     {
         // Set default caller name if not provided
-        var callerName = caller == null ? _localizer?["sa_console"] ?? "Console" : caller.PlayerName;
+        string callerName = Helper.GetCallerName(caller);
 
         // Get the new name from the command arguments
-        var newName = command.GetArg(2);
+        string newName = command.GetArg(2);
 
         // Retrieve the targets based on the command
-        var targets = GetTarget(command);
-        if (targets == null) return;
+        TargetResult? targets = GetTarget(command);
+        if (targets == null)
+        {
+            return;
+        }
 
         // Filter out valid players from the targets
-        var playersToTarget = targets.Players.Where(player => player is { IsValid: true, IsHLTV: false }).ToList();
+        List<CCSPlayerController> playersToTarget = targets.Players.Where(player => player is { IsValid: true, IsHLTV: false }).ToList();
 
         // Log the command
         Helper.LogCommand(caller, command);
@@ -330,20 +403,22 @@ public partial class CS2_SimpleAdmin
         {
             // Check if the player is connected and can be targeted
             if (player.Connected != PlayerConnectedState.Connected || !caller!.CanTarget(player))
+            {
                 return;
-            
+            }
+
             // Determine message key and arguments for the rename notification
-            var activityMessageKey = "sa_admin_rename_message";
-            var adminActivityArgs = new object[] { "CALLER", player.PlayerName, newName };
+            string activityMessageKey = "sa_admin_rename_message";
+            object[] adminActivityArgs = new object[] { "CALLER", player.PlayerName, newName };
 
             // Display admin activity message to other players
             if (caller != null && !SilentPlayers.Contains(caller.Slot))
             {
                 Helper.ShowAdminActivity(activityMessageKey, callerName, false, adminActivityArgs);
             }
-            
+
             // Determine if the new name is valid and update the renamed players list
-            var steamId = player.SteamID;
+            ulong steamId = player.SteamID;
             if (!string.IsNullOrEmpty(newName))
             {
                 RenamedPlayers[steamId] = newName;
@@ -370,51 +445,65 @@ public partial class CS2_SimpleAdmin
         IEnumerable<CCSPlayerController> playersToTeleport;
         CCSPlayerController? destinationPlayer;
 
-        var targets = GetTarget(command);
+        TargetResult? targets = GetTarget(command);
 
         if (command.ArgCount < 3)
         {
             if (caller == null || caller.PlayerPawn?.Value?.LifeState != (int)LifeState_t.LIFE_ALIVE)
+            {
                 return;
+            }
 
             if (targets == null || targets.Count() != 1)
+            {
                 return;
+            }
 
             destinationPlayer = targets.Players.FirstOrDefault(p =>
                 p is { IsValid: true, IsHLTV: false, Connected: PlayerConnectedState.Connected, PlayerPawn.Value.LifeState: (int)LifeState_t.LIFE_ALIVE });
 
             if (destinationPlayer == null || !caller.CanTarget(destinationPlayer) || caller.PlayerPawn.Value == null)
+            {
                 return;
+            }
 
             playersToTeleport = [caller];
         }
         else
         {
-            var destination = GetTarget(command, 2);
+            TargetResult? destination = GetTarget(command, 2);
             if (targets == null || destination == null || destination.Count() != 1)
+            {
                 return;
+            }
 
             destinationPlayer = destination.Players.FirstOrDefault(p =>
                 p is { IsValid: true, IsHLTV: false, PlayerPawn.Value.LifeState: (int)LifeState_t.LIFE_ALIVE });
 
             if (destinationPlayer == null)
+            {
                 return;
+            }
 
             playersToTeleport = targets.Players
                 .Where(p => p is { IsValid: true, IsHLTV: false, Connected: PlayerConnectedState.Connected, PlayerPawn.Value.LifeState: (int)LifeState_t.LIFE_ALIVE } && caller.CanTarget(p))
                 .ToList();
 
             if (!playersToTeleport.Any())
+            {
                 return;
+            }
         }
 
         // Log command
         Helper.LogCommand(caller, command);
 
-        foreach (var player in playersToTeleport)
+        foreach (CCSPlayerController player in playersToTeleport)
         {
             if (player.PlayerPawn?.Value == null || destinationPlayer?.PlayerPawn?.Value == null)
+            {
                 continue;
+            }
 
             player.TeleportPlayer(destinationPlayer);
 
@@ -453,7 +542,7 @@ public partial class CS2_SimpleAdmin
             }
         }
     }
-    
+
     /// <summary>
     /// Brings targeted player(s) to the caller or specified destination player's location.
     /// </summary>
@@ -469,11 +558,15 @@ public partial class CS2_SimpleAdmin
         if (command.ArgCount < 3)
         {
             if (caller == null || caller.PlayerPawn?.Value?.LifeState != (int)LifeState_t.LIFE_ALIVE)
+            {
                 return;
+            }
 
-            var targets = GetTarget(command);
+            TargetResult? targets = GetTarget(command);
             if (targets == null || !targets.Any())
+            {
                 return;
+            }
 
             destinationPlayer = caller;
 
@@ -483,20 +576,26 @@ public partial class CS2_SimpleAdmin
         }
         else
         {
-            var destination = GetTarget(command);
+            TargetResult? destination = GetTarget(command);
             if (destination == null || destination.Count() != 1)
+            {
                 return;
+            }
 
             destinationPlayer = destination.Players.FirstOrDefault(p =>
                 p is { IsValid: true, IsHLTV: false, Connected: PlayerConnectedState.Connected, PlayerPawn.Value.LifeState: (int)LifeState_t.LIFE_ALIVE });
 
             if (destinationPlayer == null)
+            {
                 return;
+            }
 
             // Rest args = targets to teleport
-            var targets = GetTarget(command, 2);
+            TargetResult? targets = GetTarget(command, 2);
             if (targets == null || !targets.Any())
+            {
                 return;
+            }
 
             playersToTeleport = targets.Players
                 .Where(p => p is { IsValid: true, IsHLTV: false, Connected: PlayerConnectedState.Connected, PlayerPawn.Value.LifeState: (int)LifeState_t.LIFE_ALIVE } && caller!.CanTarget(p))
@@ -504,15 +603,19 @@ public partial class CS2_SimpleAdmin
         }
 
         if (destinationPlayer == null || !playersToTeleport.Any())
+        {
             return;
+        }
 
         // Log command
         Helper.LogCommand(caller, command);
 
-        foreach (var player in playersToTeleport)
+        foreach (CCSPlayerController player in playersToTeleport)
         {
             if (player.PlayerPawn?.Value == null || destinationPlayer.PlayerPawn?.Value == null)
+            {
                 continue;
+            }
 
             // Teleport
             player.TeleportPlayer(destinationPlayer);

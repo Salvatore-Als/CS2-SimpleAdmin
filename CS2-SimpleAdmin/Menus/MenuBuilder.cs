@@ -1,17 +1,29 @@
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Translations;
+using CounterStrikeSharp.API.Modules.Admin;
+using CounterStrikeSharp.API.Modules.Entities;
 using Microsoft.Extensions.Localization;
+using PanoramaUiKit.Shared.Api;
+using PanoramaUiKit.Shared.Menus;
 
 namespace CS2_SimpleAdmin.Menus;
+
+/// <summary>
+/// Describes a menu and renders it through the Panorama UI Kit.
+/// Sub-menus are pushed on top of their parent, the kit draws the back button.
+/// </summary>
 public class MenuBuilder
 {
+    /// <summary>
+    /// Bumped every time a menu is opened for a player, so an option can tell whether its action opened another one.
+    /// </summary>
+    private static readonly Dictionary<ulong, int> OpenCounters = [];
+
     private readonly string _title;
     private readonly CCSPlayerController? _player;
     private readonly IStringLocalizer? _localizer;
     private readonly List<MenuOption> _options = [];
-    private MenuBuilder? _parentMenu;
-    private Action<CCSPlayerController>? _backAction;
-    private Action<CCSPlayerController>? _resetAction;
+    private bool _isSubMenu;
 
     /// <summary>
     /// Constructor for player-localized menu with translation key
@@ -24,28 +36,13 @@ public class MenuBuilder
     }
 
     /// <summary>
-    /// Constructor for static title (backward compatibility)
+    /// Constructor for static title
     /// </summary>
     public MenuBuilder(string title)
     {
         _title = title;
         _player = null;
         _localizer = null;
-    }
-
-    /// <summary>
-    /// Gets the localized title for the player
-    /// </summary>
-    private string GetLocalizedTitle()
-    {
-        if (_player != null && _localizer != null)
-        {
-            using (new WithTemporaryCulture(_player.GetLanguage()))
-            {
-                return _localizer[_title];
-            }
-        }
-        return _title;
     }
 
     /// <summary>
@@ -56,7 +53,9 @@ public class MenuBuilder
     /// <param name="disabled">Whether the option is disabled</param>
     /// <param name="permission">Required permission</param>
     /// <param name="isTranslationKey">If true, name is a translation key to be localized</param>
-    public MenuBuilder AddOption(string name, Action<CCSPlayerController> action, bool disabled = false, string? permission = null, bool isTranslationKey = false)
+    /// <param name="keepOpen">If true, the menu stays open after the action</param>
+    public MenuBuilder AddOption(string name, Action<CCSPlayerController> action, bool disabled = false, string? permission = null,
+        bool isTranslationKey = false, bool keepOpen = false)
     {
         _options.Add(new MenuOption
         {
@@ -64,24 +63,10 @@ public class MenuBuilder
             Action = action,
             Disabled = disabled,
             Permission = permission,
-            IsTranslationKey = isTranslationKey
+            IsTranslationKey = isTranslationKey,
+            KeepOpen = keepOpen
         });
         return this;
-    }
-
-    /// <summary>
-    /// Gets the localized name for a menu option
-    /// </summary>
-    private string GetLocalizedOptionName(MenuOption option)
-    {
-        if (option.IsTranslationKey && _player != null && _localizer != null)
-        {
-            using (new WithTemporaryCulture(_player.GetLanguage()))
-            {
-                return _localizer[option.Name];
-            }
-        }
-        return option.Name;
     }
 
     /// <summary>
@@ -89,21 +74,7 @@ public class MenuBuilder
     /// </summary>
     public MenuBuilder AddSubMenu(string name, Func<MenuBuilder> subMenuFactory, bool disabled = false, string? permission = null)
     {
-        _options.Add(new MenuOption
-        {
-            Name = name,
-            Action = player =>
-            {
-                var subMenu = subMenuFactory();
-                subMenu.SetParent(this);
-                // Automatically add back button to submenu
-                subMenu.WithBackButton();
-                subMenu.OpenMenu(player);
-            },
-            Disabled = disabled,
-            Permission = permission
-        });
-        return this;
+        return AddSubMenu(name, _ => subMenuFactory(), disabled, permission);
     }
 
     /// <summary>
@@ -114,14 +85,7 @@ public class MenuBuilder
         _options.Add(new MenuOption
         {
             Name = name,
-            Action = player =>
-            {
-                var subMenu = subMenuFactory(player);
-                subMenu.SetParent(this);
-                // Automatically add back button to submenu
-                subMenu.WithBackButton();
-                subMenu.OpenMenu(player);
-            },
+            SubMenuFactory = subMenuFactory,
             Disabled = disabled,
             Permission = permission
         });
@@ -129,27 +93,12 @@ public class MenuBuilder
     }
 
     /// <summary>
-    /// Adds a back button to return to the previous menu.
+    /// Opens this menu on top of the current one, with a back button.
     /// </summary>
     public MenuBuilder WithBackButton()
     {
-        if (_parentMenu != null)
-        {
-            _backAction = player => _parentMenu.OpenMenu(player);
-
-            // Add back option at the end of menu
-            // AddOption(backButtonText, _backAction);
-        }
+        _isSubMenu = true;
         return this;
-    }
-
-    /// <summary>
-    /// Sets the parent menu (for navigation).
-    /// </summary>
-    private void SetParent(MenuBuilder parent)
-    {
-        _parentMenu = parent;
-        _backAction = player => _parentMenu.OpenMenu(player);
     }
 
     /// <summary>
@@ -158,37 +107,36 @@ public class MenuBuilder
     /// <param name="player">The player to open the menu for.</param>
     public void OpenMenu(CCSPlayerController player)
     {
-        if (!player.IsValid) return;
-
-        // Get localized title
-        var localizedTitle = GetLocalizedTitle();
-
-        // Use MenuManager dependency
-        var menu = Helper.CreateMenu(localizedTitle, _backAction);
-        if (menu == null) return;
-
-        foreach (var option in _options)
+        if (!player.IsValid)
         {
-            // Check permissions if required
-            if (!string.IsNullOrEmpty(option.Permission))
-            {
-                var steamId = new CounterStrikeSharp.API.Modules.Entities.SteamID(player.SteamID);
-                if (!CounterStrikeSharp.API.Modules.Admin.AdminManager.PlayerHasPermissions(steamId, option.Permission))
-                {
-                    continue; // Skip option if player doesn't have permission
-                }
-            }
-
-            // Get localized option name
-            var localizedName = GetLocalizedOptionName(option);
-
-            menu.AddMenuOption(localizedName, (menuPlayer, menuOption) =>
-            {
-                option.Action?.Invoke(menuPlayer);
-            }, option.Disabled);
+            return;
         }
 
-        menu.Open(player);
+        IPanoramaUiKit? kit = UiKit.Instance;
+        if (kit == null)
+        {
+            return;
+        }
+
+        MenuOptions menu = Build(player);
+        BumpOpenCounter(player);
+
+        if (_isSubMenu)
+        {
+            kit.Menus.Push(player, menu);
+        }
+        else
+        {
+            kit.Menus.Open(player, menu);
+        }
+    }
+
+    /// <summary>
+    /// Closes any SimpleAdmin menu open for the player.
+    /// </summary>
+    public static void CloseMenu(CCSPlayerController player)
+    {
+        UiKit.Instance?.Menus.Close(player, UiKit.MenuLayout);
     }
 
     /// <summary>
@@ -201,26 +149,101 @@ public class MenuBuilder
         return this;
     }
 
-    /// <summary>
-    /// Sets a reset action for the menu.
-    /// </summary>
-    /// <param name="resetAction">The action to execute on reset.</param>
-    /// <returns>This MenuBuilder instance for chaining.</returns>
-    public MenuBuilder WithResetAction(Action<CCSPlayerController> resetAction)
+    private MenuOptions Build(CCSPlayerController player)
     {
-        _resetAction = resetAction;
-        return this;
+        List<MenuEntry> entries = [];
+        SteamID steamId = new SteamID(player.SteamID);
+
+        foreach (MenuOption option in _options)
+        {
+            if (!string.IsNullOrEmpty(option.Permission) && !AdminManager.PlayerHasPermissions(steamId, option.Permission))
+            {
+                continue;
+            }
+
+            string label = GetLocalizedOptionName(option);
+            MenuEntry entry;
+
+            if (option.SubMenuFactory != null)
+            {
+                Func<CCSPlayerController, MenuBuilder> subMenuFactory = option.SubMenuFactory;
+                entry = MenuEntry.Open(label, menuPlayer =>
+                {
+                    BumpOpenCounter(menuPlayer);
+                    return subMenuFactory(menuPlayer).Build(menuPlayer);
+                });
+            }
+            else
+            {
+                entry = MenuEntry.Button(label, menuPlayer => RunOption(option, menuPlayer));
+            }
+
+            if (option.Disabled)
+            {
+                entry = entry with { Disabled = true };
+            }
+
+            entries.Add(entry);
+        }
+
+        return new MenuOptions
+        {
+            Layout = UiKit.MenuLayout,
+            Title = GetLocalizedTitle(),
+            Entries = entries
+        };
     }
-    
+
     /// <summary>
-    /// Sets a custom back action for the menu.
+    /// Runs the option, then closes the menu unless the option keeps it open or its action opened another menu.
     /// </summary>
-    /// <param name="backAction">The action to execute when going back (nullable).</param>
-    /// <returns>This MenuBuilder instance for chaining.</returns>
-    public MenuBuilder WithBackAction(Action<CCSPlayerController>? backAction)
+    private static void RunOption(MenuOption option, CCSPlayerController player)
     {
-        _backAction = backAction;
-        return this;
+        int counterBefore = GetOpenCounter(player);
+
+        option.Action?.Invoke(player);
+
+        if (!option.KeepOpen && player.IsValid && GetOpenCounter(player) == counterBefore)
+        {
+            CloseMenu(player);
+        }
+    }
+
+    private static int GetOpenCounter(CCSPlayerController player)
+    {
+        OpenCounters.TryGetValue(player.SteamID, out int counter);
+        return counter;
+    }
+
+    private static void BumpOpenCounter(CCSPlayerController player)
+    {
+        OpenCounters[player.SteamID] = GetOpenCounter(player) + 1;
+    }
+
+    private string GetLocalizedTitle()
+    {
+        if (_player == null || _localizer == null)
+        {
+            return _title;
+        }
+
+        using (new WithTemporaryCulture(_player.GetLanguage()))
+        {
+            return _localizer[_title];
+        }
+    }
+
+    private string GetLocalizedOptionName(MenuOption option)
+    {
+        if (!option.IsTranslationKey || _player == null || _localizer == null)
+        {
+            return option.Name;
+        }
+
+        using (new WithTemporaryCulture(_player.GetLanguage()))
+        {
+            return _localizer[option.Name];
+        }
     }
 }
 
@@ -231,8 +254,9 @@ public class MenuOption
 {
     public string Name { get; set; } = string.Empty;
     public Action<CCSPlayerController>? Action { get; set; }
+    public Func<CCSPlayerController, MenuBuilder>? SubMenuFactory { get; set; }
     public bool Disabled { get; set; }
     public string? Permission { get; set; }
     public bool IsTranslationKey { get; set; }
+    public bool KeepOpen { get; set; }
 }
-    

@@ -49,7 +49,7 @@
 //         if (!caller.CanTarget(player)) return;
 //
 //         // Set default caller name if not provided
-//         callerName ??= caller != null ? caller.PlayerName : _localizer?["sa_console"] ?? "Console";
+//         callerName ??= Helper.GetCallerName(caller);
 //
 //         // Toggle no-clip mode for the player
 //         player.Pawn.Value?.ToggleNoclip();
@@ -67,7 +67,7 @@
 //
 //         // Log the command
 //         if (command == null)
-//             Helper.LogCommand(caller, $"css_noclip {(string.IsNullOrEmpty(player.PlayerName) ? player.SteamID.ToString() : player.PlayerName)}");
+//             Helper.LogCommand(caller, $"css_noclip {Helper.GetLogName(player)}");
 //     }
 //     
 //     /// <summary>
@@ -80,7 +80,7 @@
 //     [CommandHelper(minArgs: 1, usage: "<#userid or name>", whoCanExecute: CommandUsage.CLIENT_AND_SERVER)]
 //     public void OnGodCommand(CCSPlayerController? caller, CommandInfo command)
 //     {
-//         var callerName = caller == null ? _localizer?["sa_console"] ?? "Console" : caller.PlayerName;
+//         var callerName = Helper.GetCallerName(caller);
 //         var targets = GetTarget(command);
 //         if (targets == null) return;
 //
@@ -111,7 +111,7 @@
 //         if (!caller.CanTarget(player)) return;
 //
 //         // Set default caller name if not provided
-//         var callerName = caller != null ? caller.PlayerName : _localizer?["sa_console"] ?? "Console";
+//         var callerName = Helper.GetCallerName(caller);
 //
 //         // Toggle god mode for the player
 //         if (!GodPlayers.Add(player.Slot))
@@ -121,7 +121,7 @@
 //
 //         // Log the command
 //         if (command == null)
-//             Helper.LogCommand(caller, $"css_god {(string.IsNullOrEmpty(player.PlayerName) ? player.SteamID.ToString() : player.PlayerName)}");
+//             Helper.LogCommand(caller, $"css_god {Helper.GetLogName(player)}");
 //
 //         // Determine message key and arguments for the god mode notification
 //         var (activityMessageKey, adminActivityArgs) =
@@ -144,7 +144,7 @@
 //     [RequiresPermissions("@css/slay")]
 //     public void OnFreezeCommand(CCSPlayerController? caller, CommandInfo command)
 //     {
-//         var callerName = caller == null ? _localizer?["sa_console"] ?? "Console" : caller.PlayerName;
+//         var callerName = Helper.GetCallerName(caller);
 //         int.TryParse(command.GetArg(2), out var time);
 //
 //         var targets = GetTarget(command);
@@ -171,7 +171,7 @@
 //     [RequiresPermissions("@css/slay")]
 //     public void OnResizeCommand(CCSPlayerController? caller, CommandInfo command)
 //     {
-//         var callerName = caller == null ? _localizer?["sa_console"] ?? "Console" : caller.PlayerName;
+//         var callerName = Helper.GetCallerName(caller);
 //         float.TryParse(command.GetArg(2), NumberStyles.Float, CultureInfo.InvariantCulture, out var size);
 //
 //         var targets = GetTarget(command);
@@ -221,7 +221,7 @@
 //         if (!caller.CanTarget(player)) return;
 //
 //         // Set default caller name if not provided
-//         callerName ??= caller != null ? caller.PlayerName : _localizer?["sa_console"] ?? "Console";
+//         callerName ??= Helper.GetCallerName(caller);
 //
 //         // Freeze player pawn
 //         player.Pawn.Value?.Freeze();
@@ -245,7 +245,7 @@
 //
 //         // Log the command and send Discord notification
 //         if (command == null)
-//             Helper.LogCommand(caller, $"css_freeze {(string.IsNullOrEmpty(player.PlayerName) ? player.SteamID.ToString() : player.PlayerName)} {time}");
+//             Helper.LogCommand(caller, $"css_freeze {Helper.GetLogName(player)} {time}");
 //     }
 //
 //     /// <summary>
@@ -257,7 +257,7 @@
 //     [RequiresPermissions("@css/slay")]
 //     public void OnUnfreezeCommand(CCSPlayerController? caller, CommandInfo command)
 //     {
-//         var callerName = caller == null ? _localizer?["sa_console"] ?? "Console" : caller.PlayerName;
+//         var callerName = Helper.GetCallerName(caller);
 //
 //         var targets = GetTarget(command);
 //         if (targets == null) return;
@@ -284,7 +284,7 @@
 //         if (!caller.CanTarget(player)) return;
 //
 //         // Set default caller name if not provided
-//         callerName ??= caller != null ? caller.PlayerName : _localizer?["sa_console"] ?? "Console";
+//         callerName ??= Helper.GetCallerName(caller);
 //
 //         // Unfreeze player pawn
 //         player.Pawn.Value?.Unfreeze();
@@ -302,6 +302,6 @@
 //
 //         // Log the command and send Discord notification
 //         if (command == null)
-//             Helper.LogCommand(caller, $"css_unfreeze {(string.IsNullOrEmpty(player.PlayerName) ? player.SteamID.ToString() : player.PlayerName)}");
+//             Helper.LogCommand(caller, $"css_unfreeze {Helper.GetLogName(player)}");
 //     }
 // }

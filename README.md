@@ -1,106 +1,106 @@
-<p align="center">
-  <a href="https://github.com/daffyyyy/CS2-SimpleAdmin/actions/workflows/build.yml">
-    <img src="https://github.com/daffyyyy/CS2-SimpleAdmin/actions/workflows/build.yml/badge.svg" alt="Build and Publish" />
-  </a>
-<a href="https://github.com/daffyyyy/CS2-SimpleAdmin/releases/latest">
-  <img src="https://img.shields.io/github/v/release/daffyyyy/CS2-SimpleAdmin?color=orange" alt="GitHub Release" />
-</a>
-  <img src="https://img.shields.io/badge/Made_with-a_lot_of_tea_%F0%9F%8D%B5-red" alt="Made with a lot of tea 🍵" />
-</p>
+# CS2-SimpleAdmin (Panorama UI Kit fork)
 
-[![Join the support Discord](https://img.shields.io/badge/Discord-Support-blue?logo=discord&logoColor=white)](https://discord.com/channels/1160907911501991946/1180627186865156126)
-# CS2-SimpleAdmin
+> Fork of [daffyyyy/CS2-SimpleAdmin](https://github.com/daffyyyy/CS2-SimpleAdmin), the CounterStrikeSharp admin plugin for Counter-Strike 2.
+> This fork replaces the chat / center HTML menus with [Panorama UI Kit](https://github.com/Salvatore-Als/cs2-panorama-ui-kit): admin menus and votes are drawn as real Panorama panels on the player's screen.
+
+Every command, the penalty system, the database schema and the module API stay compatible with upstream. Existing servers and modules keep working once the new dependencies are installed.
 
 ---
 
-> **Manage your Counter-Strike 2 server with simple commands!**  
-> CS2-SimpleAdmin is a plugin designed to help you easily manage your Counter-Strike 2 server with user-friendly commands. Whether you're banning players, managing teams, or configuring server settings, CS2-SimpleAdmin has you covered.
+## What changes compared to upstream
+
+- **Panorama menus**: the admin menu (`css_admin`), the player / duration / reason pickers and module menus open as a Panorama UI Kit menu instead of a MenuManagerCS2 menu.
+- **Panorama votes**: `css_vote` shows a vote screen to every player, collects one answer each, closes after 30 seconds and prints the results in chat.
+- **Configurable layouts**: the menu, vote, banner and toast layout names are set in the config, so you can use your own Panorama layouts.
+- **No more MenuManagerCS2 stack**: MenuManagerCS2, PlayerSettings and AnyBaseLibCS2 are no longer required.
+- **Code style**: the whole codebase follows [CODING_CONVENTIONS.md](CODING_CONVENTIONS.md) (explicit types, no ternaries, braces everywhere), enforced by `.editorconfig`.
 
 ---
 
-## 🚀 Features
+## Features (inherited from upstream)
 
-- 🎮 **Simple, Intuitive Commands:** Manage players, teams, bans, and server settings using an easy command system.
-- 🗄 **Full Database Integration:** Reliable MySQL backend with optional experimental SQLite support for persistent data storage.
-- ⚡ **Efficient and Lightweight:** Designed to minimize server resource usage while maintaining robust functionality.
-- 🚨 **Real-time Notifications:** Instant in-game and Discord notifications to keep admins and players informed.
-- 🎛 **User-Friendly Admin Interface:** Plugin menus for quick and efficient management without complex commands.
-- 🔄 **Multi-Server Compatibility:** Manage and sync data across multiple servers seamlessly.
-- 🧩 **Modular and Extensible:** Tailor the plugin with API access to add custom commands and automation.
-- 📜 **Complete Auditing Logs:** Track all administrative actions rigorously for accountability.
-- 🌐 **Discord Integration:** Stream logs and alerts to your Discord channels for centralized monitoring.
-- 🤝 **Community Driven:** Open-source with ongoing contributions from a passionate community.
+- Bans, IP bans, offline bans, mutes, gags, silences and warnings with durations and reasons
+- MySQL backend, with experimental SQLite support
+- Multi-server: penalties and admins synced across servers sharing a database
+- Admin groups, immunity and permission overrides
+- Penalty history (`css_history`) and connect notifications
+- Discord webhooks for penalties and admin actions
+- Module API (`CS2-SimpleAdminApi`) to add commands, menus and penalty hooks from other plugins
 
 ---
 
-## ⚙️ Requirements
+## Requirements
 
-**Ensure all the following dependencies are installed before proceeding**
-- [CounterStrikeSharp](https://github.com/roflmuffin/CounterStrikeSharp)  
-- [PlayerSettings](https://github.com/NickFox007/PlayerSettingsCS2) - Required by MenuManagerCS2
-- [AnyBaseLibCS2](https://github.com/NickFox007/AnyBaseLibCS2) - Required by PlayerSettings
-- [MenuManagerCS2](https://github.com/NickFox007/MenuManagerCS2)
-- MySQL database / SQLite
+- [CounterStrikeSharp](https://github.com/roflmuffin/CounterStrikeSharp) **1.0.376** or newer
+- [Panorama UI Kit](https://github.com/Salvatore-Als/cs2-panorama-ui-kit): `plugins/PanoramaUiKit` and `shared/PanoramaUiKit.Shared`
+- [PanoramaManager](https://github.com/Next-il/PanoramaManager), required by Panorama UI Kit
+- The Panorama UI Kit Workshop addon mounted on the server (or your own layouts that follow its contracts)
+- A MySQL database, or SQLite
+
+If Panorama UI Kit is missing at startup, SimpleAdmin logs `Panorama UI Kit not found` and menus will not open.
 
 ---
 
-## 🚀 Getting Started
+## Installation
 
-1. **Clone or Download the Repository**:  
-   Download or clone the repository and publish to your `addons/counterstrikesharp/plugins/` directory.
-
-2. **First Launch Configuration**:  
-   On the first launch, a configuration file will be generated at:
+1. Install CounterStrikeSharp, PanoramaManager and Panorama UI Kit, and mount the UI Kit Workshop addon.
+2. Build this repository (see [Building](#building)) or download a release, then copy `CS2-SimpleAdmin` into `addons/counterstrikesharp/plugins/` and `CS2-SimpleAdminApi` into `addons/counterstrikesharp/shared/`.
+3. Start the server once. The config is generated at:
    ```
    addons/counterstrikesharp/configs/plugins/CS2-SimpleAdmin/CS2-SimpleAdmin.json
    ```
-   Edit this file to customize the plugin settings according to your server needs.
-
-3. **Enjoy Managing Your Server!**  
-   Use the commands provided by the plugin to easily manage your server.
+4. Fill in the database settings and restart.
 
 ---
 
-## 📁 Configuration
+## Configuration
 
-The configuration file (`CS2-SimpleAdmin.json`) will be auto-generated after the first launch. It contains settings for MySQL connections, command permissions, and other plugin-specific configurations.
+The generated config is the upstream one (`ConfigVersion` 26). The old `MenuType` key is replaced by layout names under `MenuConfig`:
 
----
+```json
+"MenuConfig": {
+  "MenuLayout": "uikit_menu",
+  "VoteLayout": "uikit_vote",
+  "BannerLayout": "uikit_banner",
+  "ToastLayout": "uikit_toast"
+}
+```
 
-## 📚 Documentation & Support
-
-Access full documentation, guides, tutorials, and developer API references here:  
-[CS2-SimpleAdmin Wiki](https://cs2-simpleadmin.daffyy.dev)
-
----
-
-## 🛠️ Development
-
-This project started as a base for other plugins but has grown into a standalone admin management tool. Contributions are welcome! If you'd like to help with development or have ideas for new features, feel free to submit a pull request or open an issue.
+Keep the defaults to use the Workshop addon layouts, or point them at your own. The layouts are preloaded when the plugin starts, so they are not created on the first menu open.
 
 ---
 
-## 🤝 Contributing & Feedback
+## Building
 
-Help improve CS2-SimpleAdmin by:
-- Reporting bugs or requesting features on GitHub
-- Submitting pull requests with improvements
-- Participating in discussions and sharing ideas
+```bash
+dotnet build CS2-SimpleAdmin.sln -c Release
+dotnet format CS2-SimpleAdmin.sln
+```
 
----
-
-## 💡 Credits
-
-This project is inspired by the work of [Hackmastr](https://github.com/Hackmastr/css-basic-admin/). Thanks for laying the groundwork!
+The project targets .NET 10. `PanoramaUiKit.Shared.dll` is referenced from `CS2-SimpleAdmin/3rd_party/`.
 
 ---
 
-## ☕ Support Development
+## Modules
 
-If you find CS2-SimpleAdmin useful, consider supporting the ongoing development:  
-[![Buy me a coffee](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/Y8Y4THKXG)
+Upstream modules live in [`Modules/`](Modules). See [MODULE_DEVELOPMENT.md](Modules/MODULE_DEVELOPMENT.md) to write your own. Menus registered through the API are rendered with Panorama UI Kit automatically.
 
 ---
 
-## 📄 License
-This project is licensed under the GPL-3.0 license - see the [LICENSE](LICENSE) file for details.
+## Documentation
+
+Commands, permissions and the general configuration are documented in the upstream wiki: [cs2-simpleadmin.daffyy.dev](https://cs2-simpleadmin.daffyy.dev).
+
+---
+
+## Credits
+
+- [daffyyyy](https://github.com/daffyyyy) for CS2-SimpleAdmin, which this fork is based on
+- [Hackmastr](https://github.com/Hackmastr/css-basic-admin/), whose work inspired the original plugin
+- [Next-il](https://github.com/Next-il/PanoramaManager) for PanoramaManager
+
+---
+
+## License
+
+GPL-3.0, like upstream. See [LICENSE](LICENSE).
